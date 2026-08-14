@@ -30,7 +30,10 @@ export default function HealthHub() {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setCounts({});
+      return;
+    }
     try {
       const [labs, vitals, checkins, meds] = await Promise.all([
         api.listLabs(activeId),
@@ -46,7 +49,7 @@ export default function HealthHub() {
         meds: meds.length,
       });
     } catch (e) {
-      // preview/API may be unavailable — keep the hub usable
+      setCounts({});
     }
   }, [activeId]);
 
@@ -66,6 +69,11 @@ export default function HealthHub() {
     { key: "measures", route: "/measurements", label: t("m_measures"), icon: "fitness", grad: gradients.warmSoft, count: counts.measures },
     { key: "history", route: "/history", label: t("m_history"), icon: "time", grad: gradients.pink, count: undefined },
   ];
+
+  const countLabel = (count?: number) => {
+    if (typeof count !== "number" || count === 0) return lang === "ru" ? "Пока нет данных" : "No data yet";
+    return String(count);
+  };
 
   return (
     <View style={styles.container}>
@@ -103,8 +111,8 @@ export default function HealthHub() {
                   <Ionicons name={m.icon} size={22} color={colors.onSurface} />
                 </View>
                 <Text style={styles.modLabel}>{m.label}</Text>
-                {typeof m.count === "number" && (
-                  <Text style={styles.modCount}>{m.count}</Text>
+                {m.key !== "history" && (
+                  <Text style={[styles.modCount, (!m.count || m.count === 0) && styles.modEmpty]}>{countLabel(m.count)}</Text>
                 )}
               </GradientCard>
             </Pressable>
@@ -163,5 +171,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   modLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, marginTop: spacing.md, letterSpacing: -0.2, fontFamily: fonts.text },
-  modCount: { fontSize: fontSize.sm, color: "rgba(27,27,29,0.6)", marginTop: 2, fontFamily: fonts.text },
+  modCount: { fontSize: fontSize.sm, color: "rgba(27,27,29,0.68)", marginTop: 2, fontWeight: "700", fontFamily: fonts.text },
+  modEmpty: { fontWeight: "500", color: "rgba(27,27,29,0.48)" },
 });
