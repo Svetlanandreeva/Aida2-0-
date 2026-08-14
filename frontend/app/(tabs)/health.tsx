@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TopBar } from "@/src/components/TopBar";
 import { GradientCard } from "@/src/components/ui";
+import { Sheet } from "@/src/components/Sheet";
 import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
 import { useI18n } from "@/src/i18n";
@@ -20,14 +21,25 @@ type Mod = {
   count?: number;
 };
 
+type AddAction = {
+  key: string;
+  labelRu: string;
+  labelEn: string;
+  hintRu: string;
+  hintEn: string;
+  icon: any;
+  run: () => void;
+};
+
 export default function HealthHub() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeId, refreshTick } = useApp();
   const { t, lang } = useI18n();
-  const { openMenu } = useLog();
+  const { openSymptom, openMed, openLab } = useLog();
   const [refreshing, setRefreshing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!activeId) {
@@ -61,6 +73,16 @@ export default function HealthHub() {
     setRefreshing(false);
   };
 
+  const go = (route: string) => {
+    setAddOpen(false);
+    setTimeout(() => router.push(route as any), 120);
+  };
+
+  const runSheetAction = (action: () => void) => {
+    setAddOpen(false);
+    setTimeout(action, 180);
+  };
+
   const mods: Mod[] = [
     { key: "labs", route: "/labs", label: t("m_labs"), icon: "water", grad: gradients.pink, count: counts.labs },
     { key: "pressure", route: "/pressure", label: t("m_pressure"), icon: "heart-circle", grad: gradients.warm, count: counts.pressure },
@@ -68,6 +90,63 @@ export default function HealthHub() {
     { key: "meds", route: "/medications", label: t("m_meds"), icon: "medkit", grad: gradients.cool, count: counts.meds },
     { key: "measures", route: "/measurements", label: t("m_measures"), icon: "fitness", grad: gradients.warmSoft, count: counts.measures },
     { key: "history", route: "/history", label: t("m_history"), icon: "time", grad: gradients.pink, count: undefined },
+  ];
+
+  const addActions: AddAction[] = [
+    {
+      key: "pressure",
+      labelRu: "Давление",
+      labelEn: "Blood pressure",
+      hintRu: "Систолическое, диастолическое и пульс",
+      hintEn: "Systolic, diastolic and pulse",
+      icon: "heart-outline",
+      run: () => go("/pressure"),
+    },
+    {
+      key: "symptom",
+      labelRu: "Симптом",
+      labelEn: "Symptom",
+      hintRu: "Что беспокоит и насколько сильно",
+      hintEn: "What you feel and how severe it is",
+      icon: "pulse-outline",
+      run: () => runSheetAction(openSymptom),
+    },
+    {
+      key: "mind",
+      labelRu: "Самочувствие и сон",
+      labelEn: "Wellbeing & sleep",
+      hintRu: "Настроение, энергия, стресс, тревога и сон",
+      hintEn: "Mood, energy, stress, anxiety and sleep",
+      icon: "moon-outline",
+      run: () => go("/mind"),
+    },
+    {
+      key: "medication",
+      labelRu: "Лекарство",
+      labelEn: "Medication",
+      hintRu: "Название, дозировка и расписание",
+      hintEn: "Name, dose and schedule",
+      icon: "medkit-outline",
+      run: () => runSheetAction(openMed),
+    },
+    {
+      key: "lab",
+      labelRu: "Анализ",
+      labelEn: "Lab result",
+      hintRu: "Фото, изображение или PDF",
+      hintEn: "Photo, image or PDF",
+      icon: "document-text-outline",
+      run: () => runSheetAction(() => openLab()),
+    },
+    {
+      key: "measurement",
+      labelRu: "Вес и измерения",
+      labelEn: "Weight & measurements",
+      hintRu: "Вес, температура, пульс, SpO₂, талия",
+      hintEn: "Weight, temperature, pulse, SpO₂, waist",
+      icon: "fitness-outline",
+      run: () => go("/measurements"),
+    },
   ];
 
   const countLabel = (count?: number) => {
@@ -85,7 +164,7 @@ export default function HealthHub() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.onSurface} />}
       >
-        <Pressable style={styles.logCard} onPress={openMenu} testID="health-log-data-button">
+        <Pressable style={styles.logCard} onPress={() => setAddOpen(true)} testID="health-log-data-button">
           <View style={styles.logIcon}>
             <Ionicons name="add" size={24} color={colors.surfaceSecondary} />
           </View>
@@ -119,6 +198,25 @@ export default function HealthHub() {
           ))}
         </View>
       </ScrollView>
+
+      <Sheet visible={addOpen} onClose={() => setAddOpen(false)} testID="health-add-data-sheet" scroll>
+        <Text style={styles.sheetTitle}>{lang === "ru" ? "Что добавить?" : "What would you like to add?"}</Text>
+        <Text style={styles.sheetHint}>{lang === "ru" ? "Выберите тип данных. Всё сохранится в текущий профиль." : "Choose a data type. It will be saved to the current profile."}</Text>
+        <View style={styles.actionList}>
+          {addActions.map((a) => (
+            <Pressable key={a.key} style={styles.actionRow} onPress={a.run} testID={`health-add-${a.key}`}>
+              <View style={styles.actionIcon}>
+                <Ionicons name={a.icon} size={21} color={colors.onSurface} />
+              </View>
+              <View style={styles.actionCopy}>
+                <Text style={styles.actionTitle}>{lang === "ru" ? a.labelRu : a.labelEn}</Text>
+                <Text style={styles.actionHint}>{lang === "ru" ? a.hintRu : a.hintEn}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceSecondary} />
+            </Pressable>
+          ))}
+        </View>
+      </Sheet>
     </View>
   );
 }
@@ -173,4 +271,27 @@ const styles = StyleSheet.create({
   modLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, marginTop: spacing.md, letterSpacing: -0.2, fontFamily: fonts.text },
   modCount: { fontSize: fontSize.sm, color: "rgba(27,27,29,0.68)", marginTop: 2, fontWeight: "700", fontFamily: fonts.text },
   modEmpty: { fontWeight: "500", color: "rgba(27,27,29,0.48)" },
+  sheetTitle: { fontSize: fontSize.xl, fontWeight: "800", color: colors.onSurface, fontFamily: fonts.display },
+  sheetHint: { marginTop: spacing.sm, marginBottom: spacing.lg, fontSize: fontSize.sm, lineHeight: 19, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
+  actionList: { gap: spacing.sm },
+  actionRow: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  actionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionCopy: { flex: 1 },
+  actionTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
+  actionHint: { marginTop: 2, fontSize: fontSize.sm, lineHeight: 18, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
 });
