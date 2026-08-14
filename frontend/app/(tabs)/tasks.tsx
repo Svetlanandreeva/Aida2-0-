@@ -17,7 +17,9 @@ import { Muted, PrimaryButton, Chip } from "@/src/components/ui";
 import { Sheet } from "@/src/components/Sheet";
 import { useApp } from "@/src/store";
 import { useI18n } from "@/src/i18n";
+import { useLog } from "@/src/components/LogProvider";
 import { api, Task } from "@/src/api";
+import { scheduleTaskReminder, cancelTaskReminder } from "@/src/notifications";
 import { colors, spacing, radius, fontSize, fonts } from "@/src/theme";
 
 const TYPE_ICON: Record<string, any> = {
@@ -50,6 +52,7 @@ export default function TasksScreen() {
   const router = useRouter();
   const { activeId, refreshTick, bumpRefresh } = useApp();
   const { t, lang } = useI18n();
+  const { toast } = useLog();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,13 +91,38 @@ export default function TasksScreen() {
   };
 
   const toggle = async (id: string) => {
-    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, done: !x.done, status: x.done ? "pending" : "done" } : x)));
-    await api.toggleTask(id).catch(() => {});
+    const current = tasks.find((task) => task.id === id);
+    if (!current) return;
+
+    const optimisticDone = !current.done;
+    setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, done: optimisticDone, status: optimisticDone ? "done" : "pending" } : x)));
+
+    try {
+      const updated = await api.toggleTask(id);
+      if (updated.done) {
+        await cancelTaskReminder(current.notification_id);
+      } else if (updated.reminder_at && new Date(updated.reminder_at).getTime() > Date.now()) {
+        const notificationId = await scheduleTaskReminder({
+          title: updated.title,
+          reminderAt: updated.reminder_at,
+          route: updated.action_route || ACTION_ROUTES[updated.kind],
+          taskId: updated.id,
+        });
+        if (notificationId) {
+          await api.updateTask(updated.id, { notification_id: notificationId });
+        }
+      }
+      await load();
+    } catch (_) {
+      await load();
+    }
     bumpRefresh();
   };
 
   const del = async (id: string) => {
+    const current = tasks.find((task) => task.id === id);
     setTasks((prev) => prev.filter((x) => x.id !== id));
+    await cancelTaskReminder(current?.notification_id);
     await api.deleteTask(id).catch(() => {});
   };
 
@@ -106,16 +134,35 @@ export default function TasksScreen() {
   const save = async () => {
     if (!title.trim() || !activeId || !isIsoDate(due)) return;
     if (reminderTime && !isTime(reminderTime)) return;
+
+    const reminderAt = reminderTime ? `${due}T${reminderTime}:00` : null;
+    const actionRoute = ACTION_ROUTES[kind] || null;
+
     setSaving(true);
     try {
-      await api.createTask({
+      const created = await api.createTask({
         profile_id: activeId,
         title: title.trim(),
         kind,
         due,
-        reminder_at: reminderTime ? `${due}T${reminderTime}:00` : null,
-        action_route: ACTION_ROUTES[kind] || null,
+        reminder_at: reminderAt,
+        action_route: actionRoute,
       });
+
+      if (reminderAt) {
+        const notificationId = await scheduleTaskReminder({
+          title: created.title,
+          reminderAt,
+          route: created.action_route || actionRoute,
+          taskId: created.id,
+        });
+        if (notificationId) {
+          await api.updateTask(created.id, { notification_id: notificationId });
+        } else {
+          toast(lang === "ru" ? "Задача сохранена, но системное напоминание не включено" : "Task saved, but system reminder is not enabled");
+        }
+      }
+
       setTitle("");
       setKind("custom");
       setDue(todayStr());
@@ -189,7 +236,7 @@ export default function TasksScreen() {
             <View style={styles.addIcon}><Ionicons name="add" size={24} color={colors.surfaceSecondary} /></View>
             <View style={styles.addCopy}>
               <Text style={styles.addTitle}>{t("add_task")}</Text>
-              <Text style={styles.addSubtitle}>{lang === "ru" ? "Задача может открыть нужное действие и напомнить в заданное время" : "A task can open the right action and remind you at a chosen time"}</Text>
+              <Text style={styles.addSubtitle}>{lang === "ru" ? "Задача откроет нужное действие и может напомнить в заданное время" : "A task opens the right action and can remind you at a chosen time"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.surfaceSecondary} />
           </Pressable>
@@ -245,7 +292,7 @@ export default function TasksScreen() {
 
         <Text style={[styles.fieldLabel, { marginTop: spacing.lg }]}>{lang === "ru" ? "Напомнить в" : "Remind at"}</Text>
         <TextInput testID="task-reminder-input" value={reminderTime} onChangeText={setReminderTime} style={[styles.input, !reminderValid && styles.inputError]} placeholder="HH:MM" placeholderTextColor={colors.onSurfaceSecondary} autoCapitalize="none" />
-        <Muted style={{ marginTop: spacing.sm }}>{lang === "ru" ? "Можно оставить пустым. Сохраняем время напоминания вместе с задачей." : "Optional. Reminder time is stored with the task."}</Muted>
+        <Muted style={{ marginTop: spacing.sm }}>{lang === "ru" ? "Можно оставить пустым. При первом напоминании приложение попросит разрешение на уведомления." : "Optional. The app will ask for notification permission when needed."}</Muted>
         {!reminderValid ? <Text style={styles.errorText}>{lang === "ru" ? "Формат: 09:30" : "Use a time like 09:30"}</Text> : null}
 
         <PrimaryButton label={t("save")} onPress={save} loading={saving} disabled={!title.trim() || !dueValid || !reminderValid} testID="save-task" style={{ marginTop: spacing.lg }} />
