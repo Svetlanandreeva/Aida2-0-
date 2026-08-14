@@ -63,6 +63,8 @@ export type Medication = {
   name: string;
   dose?: string | null;
   schedule?: string | null;
+  times?: string[];
+  meal_relation?: "any" | "before" | "with" | "after" | string;
   active: boolean;
   start_date?: string | null;
   notes?: string | null;
@@ -155,6 +157,29 @@ async function req(path: string, options?: RequestInit) {
   return res.json();
 }
 
+function minutesUntilNextDose(medication: Medication, now = new Date()) {
+  const times = (medication.times || []).filter((time) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time));
+  if (!times.length) return Number.POSITIVE_INFINITY;
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  return Math.min(...times.map((time) => {
+    const [hours, minutes] = time.split(":").map(Number);
+    const scheduled = hours * 60 + minutes;
+    const diff = scheduled - nowMinutes;
+    return diff >= 0 ? diff : diff + 24 * 60;
+  }));
+}
+
+function sortMedicationsForNow(items: Medication[]) {
+  return [...items].sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    const byTime = minutesUntilNextDose(a) - minutesUntilNextDose(b);
+    if (Number.isFinite(byTime) && byTime !== 0) return byTime;
+    if (Number.isFinite(minutesUntilNextDose(a)) && !Number.isFinite(minutesUntilNextDose(b))) return -1;
+    if (!Number.isFinite(minutesUntilNextDose(a)) && Number.isFinite(minutesUntilNextDose(b))) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export const api = {
   listProfiles: (): Promise<Profile[]> => req("/profiles"),
   createProfile: (data: Partial<Profile>): Promise<Profile> =>
@@ -173,7 +198,8 @@ export const api = {
     req("/symptoms", { method: "POST", body: JSON.stringify(data) }),
   deleteSymptom: (id: string) => req(`/symptoms/${id}`, { method: "DELETE" }),
 
-  listMeds: (pid: string): Promise<Medication[]> => req(`/medications?profile_id=${pid}`),
+  listMeds: async (pid: string): Promise<Medication[]> =>
+    sortMedicationsForNow(await req(`/medications?profile_id=${pid}`)),
   createMed: (data: any): Promise<Medication> =>
     req("/medications", { method: "POST", body: JSON.stringify(data) }),
   deleteMed: (id: string) => req(`/medications/${id}`, { method: "DELETE" }),
