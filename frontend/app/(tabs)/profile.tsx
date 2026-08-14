@@ -143,6 +143,17 @@ export default function ProfileScreen() {
             <Metric label={t("blood_type")} value={activeProfile.blood_type || "—"} />
           </View>
 
+          <Pressable style={styles.medicalCardLink} onPress={() => router.push("/medical-card" as any)} testID="medical-card-link">
+            <View style={styles.medicalCardIcon}>
+              <Ionicons name="medical-outline" size={22} color={colors.onSurface} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.medicalCardTitle}>{lang === "ru" ? "Медицинская карта" : "Medical card"}</Text>
+              <Text style={styles.medicalCardHint}>{lang === "ru" ? "Диагнозы, операции, лекарства, документы и privacy" : "Diagnoses, procedures, medications, documents and privacy"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={19} color={colors.onSurfaceSecondary} />
+          </Pressable>
+
           <Card style={{ marginTop: spacing.md }} testID="allergies-card">
             <View style={styles.sectionHead}>
               <Ionicons name="warning-outline" size={18} color={colors.warning} />
@@ -294,6 +305,10 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontSize: fontSize.lg, fontWeight: "800", color: colors.onSurface, fontFamily: fonts.text },
   metricLabel: { fontSize: fontSize.sm, color: colors.onSurfaceSecondary, marginTop: 2, fontFamily: fonts.text },
+  medicalCardLink: { minHeight: 78, marginTop: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.glassBorder, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  medicalCardIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  medicalCardTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
+  medicalCardHint: { marginTop: 3, fontSize: fontSize.sm, lineHeight: 18, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
   sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
   sectionTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
   tagWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
