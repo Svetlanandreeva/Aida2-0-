@@ -38,6 +38,16 @@ export async function getMedicationDay(profileId: string, date: string): Promise
   return jsonReq(`/medications/schedule/day?profile_id=${encodeURIComponent(profileId)}&date=${encodeURIComponent(date)}`);
 }
 
+export async function updateMedicationSchedule(
+  medicationId: string,
+  data: { name?: string; dose?: string | null; times?: string[]; meal_relation?: string; active?: boolean; schedule?: string | null }
+) {
+  return jsonReq(`/medications/${encodeURIComponent(medicationId)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
 export async function markMedicationIntake(medicationId: string, scheduledAt: string, status: "taken" | "skipped"): Promise<MedicationEvent> {
   return jsonReq(`/medications/${encodeURIComponent(medicationId)}/events`, {
     method: "POST",
