@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +9,7 @@ import { useI18n } from "@/src/i18n";
 export default function TabsLayout() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const safeBottom = Math.max(insets.bottom, Platform.OS === "web" ? 12 : 8);
 
   return (
     <Tabs
@@ -15,15 +17,30 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.onSurface,
         tabBarInactiveTintColor: colors.onSurfaceSecondary,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: colors.surfaceSecondary,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 62 + insets.bottom,
-          paddingBottom: insets.bottom + 6,
+          height: 72 + safeBottom,
+          paddingBottom: safeBottom,
           paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600", fontFamily: fonts.text },
+        tabBarItemStyle: {
+          paddingTop: 2,
+          paddingBottom: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 0,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          lineHeight: 15,
+          fontWeight: "600",
+          fontFamily: fonts.text,
+          marginTop: 2,
+          marginBottom: 0,
+        },
       }}
     >
       <Tabs.Screen
