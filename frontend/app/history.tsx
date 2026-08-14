@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { Card, Title, Body, Muted } from "@/src/components/ui";
+import { Card, Title, Body, Muted, PrimaryButton } from "@/src/components/ui";
 import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
 import { useI18n } from "@/src/i18n";
@@ -40,10 +40,11 @@ const FILTERS = ["all", "labs", "symptoms", "medications"] as const;
 export default function TimelineScreen() {
   const insets = useSafeAreaInsets();
   const { activeId, refreshTick, bumpRefresh } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { openLab } = useLog();
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [labs, setLabs] = useState<LabTest[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
@@ -52,7 +53,15 @@ export default function TimelineScreen() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setLabs([]);
+      setSymptoms([]);
+      setMeds([]);
+      setError(false);
+      setLoading(false);
+      return;
+    }
+    setError(false);
     try {
       const [l, s, m] = await Promise.all([
         api.listLabs(activeId),
@@ -62,6 +71,8 @@ export default function TimelineScreen() {
       setLabs(l);
       setSymptoms(s);
       setMeds(m);
+    } catch (e) {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -216,6 +227,21 @@ export default function TimelineScreen() {
     );
   };
 
+  const stateView = !activeId ? (
+    <View style={styles.stateBox}>
+      <Ionicons name="person-circle-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.stateTitle}>{lang === "ru" ? "Сначала выберите профиль" : "Choose a profile first"}</Text>
+      <Muted style={styles.stateText}>{lang === "ru" ? "История здоровья собирается отдельно для каждого профиля." : "Health history is collected separately for each profile."}</Muted>
+    </View>
+  ) : error ? (
+    <View style={styles.stateBox}>
+      <Ionicons name="cloud-offline-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.stateTitle}>{lang === "ru" ? "Не удалось загрузить историю" : "Could not load history"}</Text>
+      <Muted style={styles.stateText}>{lang === "ru" ? "Проверьте соединение и попробуйте ещё раз." : "Check your connection and try again."}</Muted>
+      <PrimaryButton label={lang === "ru" ? "Повторить" : "Retry"} onPress={() => { setLoading(true); load(); }} style={{ marginTop: spacing.lg }} />
+    </View>
+  ) : null;
+
   return (
     <View style={styles.container}>
       <ScreenHeader title={t("m_history")} />
@@ -242,13 +268,16 @@ export default function TimelineScreen() {
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.brand} />
         </View>
+      ) : stateView ? (
+        <ScrollView contentContainerStyle={styles.emptyWrap}>{stateView}</ScrollView>
       ) : entries.length === 0 ? (
         <ScrollView
           contentContainerStyle={styles.emptyWrap}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           <Image source={{ uri: EMPTY_IMG }} style={styles.emptyImg} contentFit="cover" />
-          <Muted style={{ textAlign: "center", marginTop: spacing.lg }}>{t("timeline_empty")}</Muted>
+          <Text style={styles.stateTitle}>{lang === "ru" ? "История пока пуста" : "History is empty"}</Text>
+          <Muted style={{ textAlign: "center", marginTop: spacing.sm }}>{t("timeline_empty")}</Muted>
         </ScrollView>
       ) : (
         <ScrollView
@@ -260,9 +289,11 @@ export default function TimelineScreen() {
         </ScrollView>
       )}
 
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => openLab()} testID="upload-lab-fab">
-        <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
-      </Pressable>
+      {!loading && activeId && !error && (
+        <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => openLab()} testID="upload-lab-fab">
+          <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -283,6 +314,9 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyWrap: { alignItems: "center", justifyContent: "center", padding: spacing.xl, paddingTop: spacing["3xl"] },
   emptyImg: { width: 220, height: 160, borderRadius: radius.lg },
+  stateBox: { alignItems: "center", paddingHorizontal: spacing.lg },
+  stateTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, textAlign: "center", fontFamily: fonts.text },
+  stateText: { marginTop: spacing.sm, textAlign: "center", maxWidth: 320 },
   entryHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBox: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   abnormalTag: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 },
