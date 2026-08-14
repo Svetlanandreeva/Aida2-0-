@@ -1,5 +1,12 @@
 const BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "") + "/api";
 
+export type Surgery = {
+  id: string;
+  title: string;
+  date?: string | null;
+  note?: string | null;
+};
+
 export type Profile = {
   id: string;
   name: string;
@@ -11,6 +18,14 @@ export type Profile = {
   blood_type?: string | null;
   allergies: string[];
   chronic_conditions: string[];
+  diagnoses?: string[];
+  surgeries?: Surgery[];
+  privacy?: {
+    include_in_ai_context?: boolean;
+    share_documents?: boolean;
+    [key: string]: any;
+  };
+  module_settings?: Record<string, boolean>;
   avatar_url?: string | null;
 };
 
