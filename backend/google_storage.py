@@ -26,12 +26,17 @@ SHEET_NAMES = {
     "labs": "labs",
     "symptoms": "symptoms",
     "medications": "medications",
+    "medication_events": "medication_events",
     "vitals": "vitals",
     "checkins": "checkins",
     "tasks": "tasks",
     "chat_messages": "chat",
     "puzzle": "puzzle",
     "files": "files",
+    "accounts": "accounts",
+    "access_grants": "access_grants",
+    "audit_log": "audit_log",
+    "candidates": "candidates",
 }
 
 
