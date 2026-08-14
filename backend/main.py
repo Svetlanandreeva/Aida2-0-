@@ -48,6 +48,7 @@ os.environ.setdefault("MONGO_URL", "google-sheets://aida")
 os.environ.setdefault("DB_NAME", "aida")
 
 import server as legacy_server  # noqa: E402
+from candidate_records import build_candidate_router  # noqa: E402
 
 
 # Production must never populate empty medical storage with demo profiles,
@@ -59,3 +60,4 @@ legacy_server.app.router.on_startup = [
 ]
 
 app = legacy_server.app
+app.include_router(build_candidate_router(_google_db))
