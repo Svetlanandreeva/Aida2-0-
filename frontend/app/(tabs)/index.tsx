@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TopBar } from "@/src/components/TopBar";
-import { Card, GradientCard, Title, Muted, ProgressBar, Tag } from "@/src/components/ui";
+import { Card, GradientCard, Title, Muted, Tag } from "@/src/components/ui";
 import { Sheet } from "@/src/components/Sheet";
 import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
@@ -54,7 +54,10 @@ export default function HomeScreen() {
   const [customize, setCustomize] = useState(false);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setLoading(false);
+      return;
+    }
     try {
       const [r, g, m, s, l, p] = await Promise.all([
         api.readiness(activeId),
@@ -71,11 +74,11 @@ export default function HomeScreen() {
       setLabs(l);
       setWidgets((p.widgets || []).sort((a: any, b: any) => a.order - b.order));
     } catch (e) {
-      // ignore
+      // Individual widgets keep their honest empty state if a request is unavailable.
     } finally {
       setLoading(false);
     }
-    api.overview(activeId, lang).then(setOverview).catch(() => {});
+    api.overview(activeId, lang).then(setOverview).catch(() => setOverview(null));
   }, [activeId, lang]);
 
   useFocusEffect(
@@ -97,18 +100,22 @@ export default function HomeScreen() {
     if (activeId) await api.savePuzzle(activeId, next).catch(() => {});
   };
 
-  const { inRange, outRange } = useMemo(() => {
+  const { inRange, outRange, biomarkerCount } = useMemo(() => {
     let inR = 0;
     let outR = 0;
+    let total = 0;
     labs.forEach((l) =>
       l.biomarkers.forEach((b) => {
+        total += 1;
         if (b.status === "high" || b.status === "low") outR += 1;
         else if (b.status === "normal") inR += 1;
       })
     );
-    return { inRange: inR, outRange: outR };
+    return { inRange: inR, outRange: outR, biomarkerCount: total };
   }, [labs]);
 
+  const hasLabData = biomarkerCount > 0;
+  const hasClinicalData = hasLabData || meds.length > 0 || symptoms.length > 0;
   const activeMed = meds.find((m) => m.active) || meds[0];
   const lastSymptom = symptoms[0];
   const lastLab = labs[0];
@@ -127,7 +134,7 @@ export default function HomeScreen() {
       case "quests":
         return <Card key={id} testID="widget-quests"><WidgetHeader icon="trophy-outline" label={t("quests")} />{(game?.quests || []).map((q: any) => <View key={q.id} style={styles.questRow}><Ionicons name={q.done ? "checkmark-circle" : "ellipse-outline"} size={20} color={q.done ? colors.success : colors.onSurfaceSecondary} /><Text style={[styles.questText, q.done && styles.questDone]}>{lang === "ru" ? q.title : q.title_en}</Text><Tag label={`+${q.xp}`} /></View>)}</Card>;
       case "quick_note":
-        return <Card key={id} testID="widget-note" onPress={openMenu}><WidgetHeader icon="create-outline" label={t("quick_note")} /><Muted>{lang === "ru" ? "Нажмите, чтобы записать данные" : "Tap to log data"}</Muted></Card>;
+        return <Card key={id} testID="widget-note" onPress={openMenu}><WidgetHeader icon="create-outline" label={t("quick_note")} /><Muted>{lang === "ru" ? "Нажмите, чтобы добавить данные" : "Tap to add data"}</Muted></Card>;
       default: return null;
     }
   };
@@ -150,11 +157,26 @@ export default function HomeScreen() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}><TopBar subtitle={`${t("hello")}, ${activeProfile?.name || ""} · ${t("home_subtitle")}`} /></View>
       {loading ? <View style={styles.center}><ActivityIndicator size="large" color={colors.onSurface} /></View> : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.onSurface} />}>
-          <View style={styles.statStrip}><View style={styles.statPill}><Text style={styles.statNum}>{inRange}</Text><View style={[styles.statTag, { backgroundColor: colors.accent }]}><Text style={styles.statTagText}>{lang === "ru" ? "В норме" : "In range"}</Text></View></View><View style={styles.statPill}><Text style={styles.statNum}>{outRange}</Text><View style={[styles.statTag, { backgroundColor: "#F6D8CE" }]}><Text style={[styles.statTagText, { color: colors.error }]}>{lang === "ru" ? "Вне нормы" : "Out of range"}</Text></View></View></View>
-          {readinessOn && <GradientCard gradient={gradients.warm} style={styles.hero} testID="hero-readiness"><Text style={styles.heroLabel}>{t("readiness")}</Text><Text style={styles.heroNum}>{readiness?.overall ?? 0}%</Text><Text style={styles.heroSub}>{t("readiness_hint")}</Text><View style={styles.heroBar}><View style={{ width: `${readiness?.overall ?? 0}%`, height: "100%", backgroundColor: colors.onSurface, borderRadius: 3 }} /></View></GradientCard>}
-          {overview?.ai_summary ? <GradientCard gradient={gradients.lime} style={{ marginBottom: spacing.md }} testID="ai-day-card"><View style={styles.aiHead}><Ionicons name="sparkles" size={16} color={colors.onSurface} /><Text style={styles.aiHeadText}>{t("ai_day")}</Text></View><Text style={styles.aiText}>{overview.ai_summary}</Text></GradientCard> : null}
-          <Card style={{ marginBottom: spacing.md }} testID="attention-card"><WidgetHeader icon="alert-circle-outline" label={t("needs_attention")} />{overview && overview.attention.length > 0 ? overview.attention.map((a, i) => <Pressable key={i} style={styles.attnRow} testID={`attention-${i}`} onPress={() => router.push((a.type === "bp" ? "/pressure" : a.type === "symptom" ? "/history" : "/labs") as any)}><View style={[styles.attnDot, { backgroundColor: a.severity === "error" ? colors.error : colors.warning }]} /><View style={{ flex: 1 }}><Text style={styles.attnTitle}>{a.title}</Text>{a.subtitle ? <Muted>{a.subtitle}</Muted> : null}</View><Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} /></Pressable>) : <View style={styles.allGood}><Ionicons name="checkmark-circle" size={20} color={colors.success} /><Muted style={{ flex: 1 }}>{t("all_good")}</Muted></View>}</Card>
-          <View style={styles.dualRow}><Card style={styles.dualCard} onPress={() => openLab()} testID="upload-records-card"><View style={styles.plusRow}><Ionicons name="cloud-upload-outline" size={22} color={colors.onSurface} /><View style={styles.plusBtn}><Ionicons name="add" size={18} color={colors.onSurface} /></View></View><Text style={styles.dualTitle}>{t("upload_lab")}</Text><Muted numberOfLines={1}>{labs.length} {t("labs").toLowerCase()}</Muted></Card><GradientCard gradient={gradients.pink} style={styles.dualCard} onPress={() => toast(lang === "ru" ? "Подключение устройств — скоро" : "Device sync — coming soon")} testID="connect-device-card"><View style={styles.plusRow}><Ionicons name="watch-outline" size={22} color={colors.onSurface} /><View style={styles.plusBtn}><Ionicons name="add" size={18} color={colors.onSurface} /></View></View><Text style={styles.dualTitle}>{lang === "ru" ? "Подключить устройство" : "Connect tracker"}</Text><Muted numberOfLines={1} style={{ color: "rgba(27,27,29,0.55)" }}>Apple Watch · Xiaomi</Muted></GradientCard></View>
+          {!hasClinicalData && (
+            <GradientCard gradient={gradients.warm} style={styles.emptyHero} testID="home-empty-state">
+              <View style={styles.emptyIcon}><Ionicons name="sparkles-outline" size={22} color={colors.onSurface} /></View>
+              <Text style={styles.emptyTitle}>{lang === "ru" ? "Начнём собирать картину здоровья" : "Let’s build your health picture"}</Text>
+              <Text style={styles.emptyText}>{lang === "ru" ? "Добавьте первый анализ, измерение или запись. До этого Аида не будет показывать оценки и выводы." : "Add your first lab, measurement or health entry. Until then Aida will not show scores or conclusions."}</Text>
+              <Pressable style={styles.emptyAction} onPress={() => openLab()} testID="empty-upload-lab">
+                <Ionicons name="cloud-upload-outline" size={18} color={colors.onSurfaceInverse} />
+                <Text style={styles.emptyActionText}>{lang === "ru" ? "Загрузить первый анализ" : "Upload first lab"}</Text>
+              </Pressable>
+            </GradientCard>
+          )}
+
+          {hasLabData && <View style={styles.statStrip}><View style={styles.statPill}><Text style={styles.statNum}>{inRange}</Text><View style={[styles.statTag, { backgroundColor: colors.accent }]}><Text style={styles.statTagText}>{lang === "ru" ? "В норме" : "In range"}</Text></View></View><View style={styles.statPill}><Text style={styles.statNum}>{outRange}</Text><View style={[styles.statTag, { backgroundColor: "#F6D8CE" }]}><Text style={[styles.statTagText, { color: colors.error }]}>{lang === "ru" ? "Вне нормы" : "Out of range"}</Text></View></View></View>}
+
+          {readinessOn && hasClinicalData && readiness && <GradientCard gradient={gradients.warm} style={styles.hero} testID="hero-readiness"><Text style={styles.heroLabel}>{t("readiness")}</Text><Text style={styles.heroNum}>{readiness.overall}%</Text><Text style={styles.heroSub}>{t("readiness_hint")}</Text><View style={styles.heroBar}><View style={{ width: `${readiness.overall}%`, height: "100%", backgroundColor: colors.onSurface, borderRadius: 3 }} /></View></GradientCard>}
+          {hasClinicalData && overview?.ai_summary ? <GradientCard gradient={gradients.lime} style={{ marginBottom: spacing.md }} testID="ai-day-card"><View style={styles.aiHead}><Ionicons name="sparkles" size={16} color={colors.onSurface} /><Text style={styles.aiHeadText}>{t("ai_day")}</Text></View><Text style={styles.aiText}>{overview.ai_summary}</Text></GradientCard> : null}
+
+          {hasClinicalData && <Card style={{ marginBottom: spacing.md }} testID="attention-card"><WidgetHeader icon="alert-circle-outline" label={t("needs_attention")} />{overview && overview.attention.length > 0 ? overview.attention.map((a, i) => <Pressable key={i} style={styles.attnRow} testID={`attention-${i}`} onPress={() => router.push((a.type === "bp" ? "/pressure" : a.type === "symptom" ? "/history" : "/labs") as any)}><View style={[styles.attnDot, { backgroundColor: a.severity === "error" ? colors.error : colors.warning }]} /><View style={{ flex: 1 }}><Text style={styles.attnTitle}>{a.title}</Text>{a.subtitle ? <Muted>{a.subtitle}</Muted> : null}</View><Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} /></Pressable>) : overview ? <View style={styles.allGood}><Ionicons name="checkmark-circle" size={20} color={colors.success} /><Muted style={{ flex: 1 }}>{t("all_good")}</Muted></View> : <View style={styles.neutralState}><Ionicons name="information-circle-outline" size={20} color={colors.onSurfaceSecondary} /><Muted style={{ flex: 1 }}>{lang === "ru" ? "Вывод появится, когда Аида получит достаточно данных" : "Insights will appear when Aida has enough data"}</Muted></View>}</Card>}
+
+          <View style={styles.dualRow}><Card style={styles.dualCard} onPress={() => openLab()} testID="upload-records-card"><View style={styles.plusRow}><Ionicons name="cloud-upload-outline" size={22} color={colors.onSurface} /><View style={styles.plusBtn}><Ionicons name="add" size={18} color={colors.onSurface} /></View></View><Text style={styles.dualTitle}>{t("upload_lab")}</Text><Muted numberOfLines={1}>{labs.length > 0 ? `${labs.length} ${t("labs").toLowerCase()}` : (lang === "ru" ? "Анализов пока нет" : "No labs yet")}</Muted></Card><GradientCard gradient={gradients.pink} style={styles.dualCard} onPress={() => toast(lang === "ru" ? "Подключение устройств — скоро" : "Device sync — coming soon")} testID="connect-device-card"><View style={styles.plusRow}><Ionicons name="watch-outline" size={22} color={colors.onSurface} /><View style={styles.plusBtn}><Ionicons name="add" size={18} color={colors.onSurface} /></View></View><Text style={styles.dualTitle}>{lang === "ru" ? "Подключить устройство" : "Connect tracker"}</Text><Muted numberOfLines={1} style={{ color: "rgba(27,27,29,0.55)" }}>Apple Watch · Xiaomi</Muted></GradientCard></View>
           <View style={{ gap: spacing.md, marginTop: spacing.md }}>{rows}</View>
           <Pressable style={styles.customizeBtn} onPress={() => setCustomize(true)} testID="customize-button"><Ionicons name="options-outline" size={18} color={colors.onSurface} /><Text style={styles.customizeText}>{t("customize")}</Text></Pressable>
         </ScrollView>
@@ -176,6 +198,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  emptyHero: { marginBottom: spacing.md, paddingVertical: spacing.xl },
+  emptyIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.55)", alignItems: "center", justifyContent: "center", marginBottom: spacing.lg },
+  emptyTitle: { fontSize: fontSize.xl, lineHeight: 28, fontWeight: "800", color: colors.onSurface, fontFamily: fonts.display, letterSpacing: -0.4 },
+  emptyText: { marginTop: spacing.sm, fontSize: fontSize.base, lineHeight: 22, color: "rgba(27,27,29,0.62)", fontFamily: fonts.text },
+  emptyAction: { marginTop: spacing.lg, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.onSurface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill },
+  emptyActionText: { color: colors.onSurfaceInverse, fontWeight: "700", fontSize: fontSize.base, fontFamily: fonts.text },
   statStrip: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
   statPill: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.glassBorder },
   statNum: { fontSize: fontSize["4xl"], fontWeight: "800", color: colors.onSurface, letterSpacing: -1, fontFamily: fonts.display },
@@ -199,6 +227,7 @@ const styles = StyleSheet.create({
   attnDot: { width: 10, height: 10, borderRadius: 5 },
   attnTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
   allGood: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  neutralState: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   widgetHeaderText: { fontSize: fontSize.sm, color: colors.onSurfaceSecondary, fontWeight: "600", fontFamily: fonts.text },
   halfRow: { flexDirection: "row", gap: spacing.md },
   halfCard: { flex: 1, minHeight: 110 },
