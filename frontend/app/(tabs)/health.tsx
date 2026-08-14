@@ -47,11 +47,12 @@ export default function HealthHub() {
       return;
     }
     try {
-      const [labs, vitals, checkins, meds] = await Promise.all([
+      const [labs, vitals, checkins, meds, documents] = await Promise.all([
         api.listLabs(activeId),
         api.listVitals(activeId),
         api.listCheckins(activeId),
         api.listMeds(activeId),
+        api.listDocuments(activeId),
       ]);
       setCounts({
         labs: labs.length,
@@ -59,6 +60,7 @@ export default function HealthHub() {
         measures: vitals.filter((v) => v.kind !== "bp").length,
         mind: checkins.length,
         meds: meds.length,
+        documents: documents.length,
       });
     } catch (e) {
       setCounts({});
@@ -89,6 +91,7 @@ export default function HealthHub() {
     { key: "mind", route: "/mind", label: t("m_mind"), icon: "happy", grad: gradients.lime, count: counts.mind },
     { key: "meds", route: "/medications", label: t("m_meds"), icon: "medkit", grad: gradients.cool, count: counts.meds },
     { key: "measures", route: "/measurements", label: t("m_measures"), icon: "fitness", grad: gradients.warmSoft, count: counts.measures },
+    { key: "documents", route: "/documents", label: lang === "ru" ? "Документы" : "Documents", icon: "folder", grad: gradients.cool, count: counts.documents },
     { key: "history", route: "/history", label: t("m_history"), icon: "time", grad: gradients.pink, count: undefined },
   ];
 
@@ -133,10 +136,19 @@ export default function HealthHub() {
       key: "lab",
       labelRu: "Анализ",
       labelEn: "Lab result",
-      hintRu: "Фото, изображение или PDF",
-      hintEn: "Photo, image or PDF",
+      hintRu: "Распознать показатели из фото или PDF",
+      hintEn: "Recognize biomarkers from a photo or PDF",
       icon: "document-text-outline",
       run: () => runSheetAction(() => openLab()),
+    },
+    {
+      key: "document",
+      labelRu: "Медицинский документ",
+      labelEn: "Medical document",
+      hintRu: "Выписка, заключение, назначение — сохранить оригинал",
+      hintEn: "Discharge summary, doctor note or prescription — store original",
+      icon: "document-attach-outline",
+      run: () => go("/documents"),
     },
     {
       key: "measurement",
@@ -171,7 +183,7 @@ export default function HealthHub() {
           <View style={styles.logCopy}>
             <Text style={styles.logTitle}>{lang === "ru" ? "Добавить данные" : "Add health data"}</Text>
             <Text style={styles.logSubtitle}>
-              {lang === "ru" ? "Давление, симптомы, сон, измерения и другое" : "Vitals, symptoms, sleep, measurements and more"}
+              {lang === "ru" ? "Давление, симптомы, документы, сон и измерения" : "Vitals, symptoms, documents, sleep and measurements"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.surfaceSecondary} />
