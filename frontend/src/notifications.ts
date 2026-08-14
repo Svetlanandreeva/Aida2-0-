@@ -3,14 +3,16 @@ import * as Notifications from "expo-notifications";
 
 const CHANNEL_ID = "aida-reminders";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 async function ensureReminderPermission(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -24,9 +26,9 @@ async function ensureReminderPermission(): Promise<boolean> {
   }
 
   const current = await Notifications.getPermissionsAsync();
-  if (current.status === "granted") return true;
+  if (current.granted) return true;
   const requested = await Notifications.requestPermissionsAsync();
-  return requested.status === "granted";
+  return requested.granted;
 }
 
 export async function scheduleTaskReminder(input: {
@@ -35,6 +37,8 @@ export async function scheduleTaskReminder(input: {
   route?: string | null;
   taskId?: string | null;
 }): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+
   const date = new Date(input.reminderAt);
   if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) return null;
   if (!(await ensureReminderPermission())) return null;
@@ -53,7 +57,7 @@ export async function scheduleTaskReminder(input: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date,
       ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
-    } as Notifications.DateTriggerInput,
+    },
   });
 }
 
