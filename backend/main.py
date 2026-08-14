@@ -33,6 +33,7 @@ os.environ.setdefault("MONGO_URL", "google-sheets://aida")
 os.environ.setdefault("DB_NAME", "aida")
 
 import server as legacy_server  # noqa: E402
+from auth_api import build_auth_router  # noqa: E402
 from candidate_records import build_candidate_router  # noqa: E402
 from documents import build_documents_router  # noqa: E402
 from lab_pipeline import build_lab_router  # noqa: E402
@@ -79,8 +80,11 @@ legacy_server.app.router.routes = [
     )
 ]
 
+auth_router, auth_service = build_auth_router(_google_db)
+
 app = legacy_server.app
-app.include_router(build_profile_router(_google_db))
+app.include_router(auth_router)
+app.include_router(build_profile_router(_google_db, auth_service))
 app.include_router(build_puzzle_router(_google_db))
 app.include_router(build_task_router(_google_db))
 app.include_router(build_medication_router(_google_db))
