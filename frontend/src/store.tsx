@@ -39,12 +39,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLoading(true);
     setError(null);
     try {
-      await api.seed().catch(() => {});
       let list = await api.listProfiles();
+
+      // First launch creates only an identity shell. Medical fields stay empty
+      // until the user explicitly enters data or connects a source.
       if (!list || list.length === 0) {
-        await api.seed().catch(() => {});
-        list = await api.listProfiles();
+        const blank = await api.createProfile({
+          name: "Мой профиль",
+          kind: "me",
+          allergies: [],
+          chronic_conditions: [],
+        });
+        list = [blank];
       }
+
       setProfiles(list);
       const stored = await storage.getItem<string>(ACTIVE_KEY, "");
       const valid = list.find((p) => p.id === stored);
