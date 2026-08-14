@@ -52,6 +52,23 @@ legacy_server.app.router.on_startup = [
     if getattr(handler, "__name__", "") != "_startup"
 ]
 
+# Enforce the user's profile privacy choice at the actual AI-context boundary.
+# When disabled, Aida receives no stored medical context for that profile.
+_legacy_get_profile_context = legacy_server.get_profile_context
+
+
+async def _privacy_aware_profile_context(profile_id: str) -> str:
+    profile = await _google_db.profiles.find_one({"id": profile_id}, {"_id": 0})
+    if not profile:
+        return ""
+    privacy = profile.get("privacy") or {}
+    if privacy.get("include_in_ai_context") is False:
+        return ""
+    return await _legacy_get_profile_context(profile_id)
+
+
+legacy_server.get_profile_context = _privacy_aware_profile_context
+
 # Replace legacy routes whose production implementations need stricter storage
 # or richer data contracts.
 legacy_server.app.router.routes = [
