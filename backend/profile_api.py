@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 
@@ -88,29 +88,60 @@ def _normalize(doc: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def build_profile_router(db) -> APIRouter:
+def build_profile_router(db, auth) -> APIRouter:
     router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
+    async def require_access(account_id: str, profile_id: str, write: bool = False):
+        if not await auth.has_profile_access(account_id, profile_id, write=write):
+            # Do not distinguish missing from inaccessible profiles.
+            raise HTTPException(404, "Profile not found")
+
     @router.get("", response_model=List[ProfileFull])
-    async def list_profiles():
-        docs = await db.profiles.find({}, {"_id": 0}).sort("created_at", 1).to_list(200)
-        return [_normalize(d) for d in docs]
+    async def list_profiles(account: Dict[str, Any] = Depends(auth.require_account)):
+        grants = await db.access_grants.find({"account_id": account["id"]}, {"_id": 0}).to_list(500)
+        profile_ids = {
+            str(grant.get("profile_id"))
+            for grant in grants
+            if grant.get("profile_id") and not grant.get("revoked_at")
+        }
+        if not profile_ids:
+            return []
+        docs = await db.profiles.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+        return [_normalize(d) for d in docs if str(d.get("id")) in profile_ids]
 
     @router.post("", response_model=ProfileFull)
-    async def create_profile(data: ProfileCreate):
-        p = ProfileFull(**data.model_dump())
-        await db.profiles.insert_one(p.model_dump())
+    async def create_profile(data: ProfileCreate, account: Dict[str, Any] = Depends(auth.require_account)):
+        payload = data.model_dump()
+        payload["account_id"] = account["id"]
+        p = ProfileFull(**payload)
+        doc = p.model_dump()
+        doc["account_id"] = account["id"]
+        await db.profiles.insert_one(doc)
+        try:
+            await db.access_grants.insert_one({
+                "id": str(uuid.uuid4()),
+                "account_id": account["id"],
+                "profile_id": p.id,
+                "role": "owner",
+                "created_at": _now(),
+                "revoked_at": None,
+            })
+        except Exception:
+            await db.profiles.delete_one({"id": p.id})
+            raise
         return p
 
     @router.get("/{profile_id}", response_model=ProfileFull)
-    async def get_profile(profile_id: str):
+    async def get_profile(profile_id: str, account: Dict[str, Any] = Depends(auth.require_account)):
+        await require_access(str(account["id"]), profile_id)
         doc = await db.profiles.find_one({"id": profile_id}, {"_id": 0})
         if not doc:
             raise HTTPException(404, "Profile not found")
         return _normalize(doc)
 
     @router.put("/{profile_id}", response_model=ProfileFull)
-    async def update_profile(profile_id: str, data: ProfileUpdate):
+    async def update_profile(profile_id: str, data: ProfileUpdate, account: Dict[str, Any] = Depends(auth.require_account)):
+        await require_access(str(account["id"]), profile_id, write=True)
         current = await db.profiles.find_one({"id": profile_id}, {"_id": 0})
         if not current:
             raise HTTPException(404, "Profile not found")
@@ -121,12 +152,14 @@ def build_profile_router(db) -> APIRouter:
         return _normalize(doc)
 
     @router.delete("/{profile_id}")
-    async def delete_profile(profile_id: str):
+    async def delete_profile(profile_id: str, account: Dict[str, Any] = Depends(auth.require_account)):
+        await require_access(str(account["id"]), profile_id, write=True)
         await db.profiles.delete_one({"id": profile_id})
         for collection in (
             db.labs,
             db.symptoms,
             db.medications,
+            db.medication_events,
             db.chat_messages,
             db.vitals,
             db.checkins,
