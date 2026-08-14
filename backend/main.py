@@ -41,6 +41,7 @@ from medication_api import build_medication_router  # noqa: E402
 from profile_api import build_profile_router  # noqa: E402
 from puzzle_api import build_puzzle_router  # noqa: E402
 from task_api import build_task_router  # noqa: E402
+from timeline_api import build_timeline_router  # noqa: E402
 
 legacy_server.app.router.on_startup = [
     handler
@@ -83,6 +84,7 @@ app.include_router(build_profile_router(_google_db))
 app.include_router(build_puzzle_router(_google_db))
 app.include_router(build_task_router(_google_db))
 app.include_router(build_medication_router(_google_db))
+app.include_router(build_timeline_router(_google_db))
 app.include_router(build_candidate_router(_google_db))
 app.include_router(build_lab_router(_google_db))
 app.include_router(build_lab_trends_router(_google_db))
