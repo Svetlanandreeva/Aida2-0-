@@ -134,10 +134,23 @@ export default function TasksScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom }}
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + insets.bottom }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.onSurface} />}
         >
+          <Pressable style={styles.addCard} onPress={() => setOpen(true)} testID="add-task-button">
+            <View style={styles.addIcon}>
+              <Ionicons name="add" size={24} color={colors.surfaceSecondary} />
+            </View>
+            <View style={styles.addCopy}>
+              <Text style={styles.addTitle}>{t("add_task")}</Text>
+              <Text style={styles.addSubtitle}>
+                {lang === "ru" ? "Лекарства, измерения, дневник, визит или своя задача" : "Medication, measurements, diary, visit or a custom task"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.surfaceSecondary} />
+          </Pressable>
+
           {tasks.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="checkmark-done-circle-outline" size={56} color={colors.onSurfaceSecondary} />
@@ -152,10 +165,6 @@ export default function TasksScreen() {
           )}
         </ScrollView>
       )}
-
-      <View style={[styles.fabWrap, { bottom: insets.bottom + 74 }]}>
-        <PrimaryButton label={t("add_task")} icon="add" onPress={() => setOpen(true)} testID="add-task-button" />
-      </View>
 
       <Sheet visible={open} onClose={() => setOpen(false)} testID="task-sheet" scroll>
         <Text style={styles.sheetTitle}>{t("add_task")}</Text>
@@ -190,6 +199,39 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  addCard: {
+    minHeight: 82,
+    borderRadius: radius.xl,
+    backgroundColor: colors.onSurface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  addIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addCopy: { flex: 1 },
+  addTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    color: colors.surfaceSecondary,
+    fontFamily: fonts.text,
+  },
+  addSubtitle: {
+    marginTop: 3,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.68)",
+    fontFamily: fonts.text,
+  },
   empty: { alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"] },
   sectionLabel: {
     fontSize: fontSize.sm,
@@ -225,7 +267,6 @@ const styles = StyleSheet.create({
   },
   taskTitle: { flex: 1, fontSize: fontSize.base, color: colors.onSurface, fontWeight: "500", fontFamily: fonts.text },
   taskDone: { color: colors.onSurfaceSecondary, textDecorationLine: "line-through" },
-  fabWrap: { position: "absolute", left: spacing.lg, right: spacing.lg },
   sheetTitle: { fontSize: fontSize.xl, fontWeight: "700", color: colors.onSurface, marginBottom: spacing.lg, fontFamily: fonts.display },
   fieldLabel: { fontSize: fontSize.base, color: colors.onSurfaceSecondary, marginBottom: spacing.sm, fontWeight: "600", fontFamily: fonts.text },
   input: {
