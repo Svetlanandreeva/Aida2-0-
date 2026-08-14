@@ -49,6 +49,7 @@ os.environ.setdefault("DB_NAME", "aida")
 
 import server as legacy_server  # noqa: E402
 from candidate_records import build_candidate_router  # noqa: E402
+from lab_pipeline import build_lab_router  # noqa: E402
 
 
 # Production must never populate empty medical storage with demo profiles,
@@ -59,5 +60,18 @@ legacy_server.app.router.on_startup = [
     if getattr(handler, "__name__", "") != "_startup"
 ]
 
+# Replace the legacy temp-file-only OCR route with the Google Drive backed
+# pipeline. Keeping two handlers for the same path would allow the old route to
+# win by registration order.
+legacy_server.app.router.routes = [
+    route
+    for route in legacy_server.app.router.routes
+    if not (
+        getattr(route, "path", None) == "/api/labs/upload"
+        and "POST" in (getattr(route, "methods", None) or set())
+    )
+]
+
 app = legacy_server.app
 app.include_router(build_candidate_router(_google_db))
+app.include_router(build_lab_router(_google_db))
