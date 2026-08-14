@@ -40,15 +40,24 @@ export default function TasksScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState("custom");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setTasks([]);
+      setLoadError(false);
+      setLoading(false);
+      return;
+    }
     try {
+      setLoadError(false);
       setTasks(await api.listTasks(activeId));
+    } catch (e) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -151,7 +160,23 @@ export default function TasksScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.surfaceSecondary} />
           </Pressable>
 
-          {tasks.length === 0 ? (
+          {loadError ? (
+            <View style={styles.empty}>
+              <Ionicons name="cloud-offline-outline" size={52} color={colors.onSurfaceSecondary} />
+              <Text style={styles.emptyTitle}>{lang === "ru" ? "Не удалось загрузить задачи" : "Couldn't load tasks"}</Text>
+              <Muted style={{ marginTop: spacing.sm, textAlign: "center" }}>
+                {lang === "ru" ? "Проверьте соединение и потяните экран вниз, чтобы повторить." : "Check your connection and pull down to retry."}
+              </Muted>
+            </View>
+          ) : !activeId ? (
+            <View style={styles.empty}>
+              <Ionicons name="person-circle-outline" size={52} color={colors.onSurfaceSecondary} />
+              <Text style={styles.emptyTitle}>{lang === "ru" ? "Сначала создайте профиль" : "Create a profile first"}</Text>
+              <Muted style={{ marginTop: spacing.sm, textAlign: "center" }}>
+                {lang === "ru" ? "Задачи будут привязаны к выбранному профилю." : "Tasks will be linked to the selected profile."}
+              </Muted>
+            </View>
+          ) : tasks.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="checkmark-done-circle-outline" size={56} color={colors.onSurfaceSecondary} />
               <Muted style={{ marginTop: spacing.md }}>{t("tasks_empty")}</Muted>
@@ -232,7 +257,8 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.68)",
     fontFamily: fonts.text,
   },
-  empty: { alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"] },
+  empty: { alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"], paddingHorizontal: spacing.xl },
+  emptyTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text, textAlign: "center" },
   sectionLabel: {
     fontSize: fontSize.sm,
     fontWeight: "700",
