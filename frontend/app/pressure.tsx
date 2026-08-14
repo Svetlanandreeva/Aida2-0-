@@ -28,10 +28,11 @@ const bpColor = (s: number, d: number) => {
 export default function PressureScreen() {
   const insets = useSafeAreaInsets();
   const { activeId, refreshTick, bumpRefresh } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [items, setItems] = useState<Vital[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [sys, setSys] = useState("");
   const [dia, setDia] = useState("");
@@ -39,9 +40,17 @@ export default function PressureScreen() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setItems([]);
+      setError(false);
+      setLoading(false);
+      return;
+    }
+    setError(false);
     try {
       setItems(await api.listVitals(activeId, "bp"));
+    } catch (e) {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -83,78 +92,96 @@ export default function PressureScreen() {
   const chart = items.slice(0, 10).reverse();
   const maxVal = Math.max(160, ...chart.map((x) => x.systolic || 0));
 
+  const stateView = !activeId ? (
+    <View style={styles.empty}>
+      <Ionicons name="person-circle-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Сначала выберите профиль" : "Choose a profile first"}</Text>
+      <Muted style={styles.emptyText}>{lang === "ru" ? "Давление будет сохраняться в медицинскую историю выбранного профиля." : "Blood pressure will be stored in the selected profile's health history."}</Muted>
+    </View>
+  ) : error ? (
+    <View style={styles.empty}>
+      <Ionicons name="cloud-offline-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Не удалось загрузить давление" : "Could not load blood pressure"}</Text>
+      <Muted style={styles.emptyText}>{lang === "ru" ? "Проверьте соединение и попробуйте ещё раз." : "Check your connection and try again."}</Muted>
+      <PrimaryButton label={lang === "ru" ? "Повторить" : "Retry"} onPress={() => { setLoading(true); load(); }} style={{ marginTop: spacing.lg }} />
+    </View>
+  ) : items.length === 0 ? (
+    <View style={styles.empty}>
+      <Ionicons name="heart-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Пока нет измерений давления" : "No blood pressure readings yet"}</Text>
+      <Muted style={styles.emptyText}>{t("pressure_empty")}</Muted>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.container}>
       <ScreenHeader title={t("m_pressure")} />
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={colors.onSurface} /></View>
+      ) : stateView ? (
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom }}>{stateView}</ScrollView>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom, gap: spacing.md }} showsVerticalScrollIndicator={false}>
-          {items.length === 0 ? (
-            <View style={styles.empty}>
-              <Ionicons name="heart-outline" size={56} color={colors.onSurfaceSecondary} />
-              <Muted style={{ marginTop: spacing.md, textAlign: "center" }}>{t("pressure_empty")}</Muted>
-            </View>
-          ) : (
-            <>
-              {stats && (
-                <View style={styles.statRow}>
-                  <Card style={styles.statCard}>
-                    <Text style={styles.statLabel}>{t("avg")}</Text>
-                    <Text style={styles.statBig}>{stats.avgS}/{stats.avgD}</Text>
-                  </Card>
-                  <Card style={styles.statCard}>
-                    <Text style={styles.statLabel}>{t("min")}–{t("max")}</Text>
-                    <Text style={styles.statBig}>{stats.minS}–{stats.maxS}</Text>
-                  </Card>
-                </View>
-              )}
+          <>
+            {stats && (
+              <View style={styles.statRow}>
+                <Card style={styles.statCard}>
+                  <Text style={styles.statLabel}>{t("avg")}</Text>
+                  <Text style={styles.statBig}>{stats.avgS}/{stats.avgD}</Text>
+                </Card>
+                <Card style={styles.statCard}>
+                  <Text style={styles.statLabel}>{t("min")}–{t("max")}</Text>
+                  <Text style={styles.statBig}>{stats.minS}–{stats.maxS}</Text>
+                </Card>
+              </View>
+            )}
 
-              {chart.length > 1 && (
-                <Card>
-                  <Text style={styles.chartTitle}>{t("m_pressure")}</Text>
-                  <View style={styles.chart}>
-                    {chart.map((x) => {
-                      const sH = ((x.systolic || 0) / maxVal) * 120;
-                      const dH = ((x.diastolic || 0) / maxVal) * 120;
-                      return (
-                        <View key={x.id} style={styles.barGroup}>
-                          <View style={styles.barTrack}>
-                            <View style={[styles.bar, { height: sH, backgroundColor: bpColor(x.systolic || 0, x.diastolic || 0) }]} />
-                            <View style={[styles.bar, { height: dH, backgroundColor: colors.surfaceTertiary, marginLeft: 3 }]} />
-                          </View>
+            {chart.length > 1 && (
+              <Card>
+                <Text style={styles.chartTitle}>{t("m_pressure")}</Text>
+                <View style={styles.chart}>
+                  {chart.map((x) => {
+                    const sH = ((x.systolic || 0) / maxVal) * 120;
+                    const dH = ((x.diastolic || 0) / maxVal) * 120;
+                    return (
+                      <View key={x.id} style={styles.barGroup}>
+                        <View style={styles.barTrack}>
+                          <View style={[styles.bar, { height: sH, backgroundColor: bpColor(x.systolic || 0, x.diastolic || 0) }]} />
+                          <View style={[styles.bar, { height: dH, backgroundColor: colors.surfaceTertiary, marginLeft: 3 }]} />
                         </View>
-                      );
-                    })}
-                  </View>
-                  <Muted style={{ textAlign: "center", marginTop: spacing.sm }}>
-                    {t("systolic").split(" ")[0]} / {t("diastolic").split(" ")[0]}
-                  </Muted>
-                </Card>
-              )}
+                      </View>
+                    );
+                  })}
+                </View>
+                <Muted style={{ textAlign: "center", marginTop: spacing.sm }}>
+                  {t("systolic").split(" ")[0]} / {t("diastolic").split(" ")[0]}
+                </Muted>
+              </Card>
+            )}
 
-              {items.map((x) => (
-                <Card key={x.id} testID={`bp-${x.id}`}>
-                  <View style={styles.itemRow}>
-                    <View style={[styles.dot, { backgroundColor: bpColor(x.systolic || 0, x.diastolic || 0) }]} />
-                    <Text style={styles.itemVal}>{Math.round(x.systolic || 0)}/{Math.round(x.diastolic || 0)}</Text>
-                    {x.pulse ? <Text style={styles.itemPulse}>· {Math.round(x.pulse)} {t("pulse").toLowerCase()}</Text> : null}
-                    <View style={{ flex: 1 }} />
-                    <Muted>{(x.date || "").slice(0, 10)}</Muted>
-                    <Pressable onPress={async () => { await api.deleteVital(x.id); load(); }} hitSlop={8} style={{ marginLeft: spacing.sm }} testID={`delete-bp-${x.id}`}>
-                      <Ionicons name="trash-outline" size={16} color={colors.onSurfaceSecondary} />
-                    </Pressable>
-                  </View>
-                </Card>
-              ))}
-            </>
-          )}
+            {items.map((x) => (
+              <Card key={x.id} testID={`bp-${x.id}`}>
+                <View style={styles.itemRow}>
+                  <View style={[styles.dot, { backgroundColor: bpColor(x.systolic || 0, x.diastolic || 0) }]} />
+                  <Text style={styles.itemVal}>{Math.round(x.systolic || 0)}/{Math.round(x.diastolic || 0)}</Text>
+                  {x.pulse ? <Text style={styles.itemPulse}>· {Math.round(x.pulse)} {t("pulse").toLowerCase()}</Text> : null}
+                  <View style={{ flex: 1 }} />
+                  <Muted>{(x.date || "").slice(0, 10)}</Muted>
+                  <Pressable onPress={async () => { await api.deleteVital(x.id); load(); }} hitSlop={8} style={{ marginLeft: spacing.sm }} testID={`delete-bp-${x.id}`}>
+                    <Ionicons name="trash-outline" size={16} color={colors.onSurfaceSecondary} />
+                  </Pressable>
+                </View>
+              </Card>
+            ))}
+          </>
         </ScrollView>
       )}
 
-      <View style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
-        <PrimaryButton label={t("add_pressure")} icon="add" onPress={() => setOpen(true)} testID="add-pressure-button" />
-      </View>
+      {!loading && activeId && !error && (
+        <View style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
+          <PrimaryButton label={t("add_pressure")} icon="add" onPress={() => setOpen(true)} testID="add-pressure-button" />
+        </View>
+      )}
 
       <Sheet visible={open} onClose={() => setOpen(false)} testID="pressure-sheet" scroll>
         <Text style={styles.sheetTitle}>{t("add_pressure")}</Text>
@@ -183,7 +210,9 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", paddingTop: spacing["3xl"] },
+  empty: { alignItems: "center", paddingTop: spacing["3xl"], paddingHorizontal: spacing.lg },
+  emptyTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, textAlign: "center", fontFamily: fonts.text },
+  emptyText: { marginTop: spacing.sm, textAlign: "center", maxWidth: 320 },
   statRow: { flexDirection: "row", gap: spacing.md },
   statCard: { flex: 1, padding: spacing.lg },
   statLabel: { fontSize: fontSize.sm, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
