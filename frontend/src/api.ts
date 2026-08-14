@@ -96,6 +96,22 @@ export type Task = {
   done: boolean;
 };
 
+export type MedicalDocument = {
+  id: string;
+  profile_id: string;
+  name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  drive_file_id?: string | null;
+  drive_url?: string | null;
+  purpose: string;
+  document_type?: string | null;
+  note?: string | null;
+  status?: string | null;
+  verification_status?: string | null;
+  created_at?: string | null;
+};
+
 async function req(path: string, options?: RequestInit) {
   const res = await fetch(BASE + path, {
     headers: { "Content-Type": "application/json" },
@@ -176,6 +192,29 @@ export const api = {
 
   overview: (pid: string, lang: string): Promise<{ attention: any[]; ai_summary: string | null }> =>
     req(`/overview/${pid}?language=${lang}`),
+
+  listDocuments: (pid: string): Promise<MedicalDocument[]> =>
+    req(`/documents?profile_id=${encodeURIComponent(pid)}`),
+
+  uploadDocument: async (
+    pid: string,
+    documentType: string,
+    note: string,
+    file: { uri: string; name: string; type: string }
+  ): Promise<MedicalDocument> => {
+    const form = new FormData();
+    form.append("profile_id", pid);
+    form.append("document_type", documentType);
+    if (note.trim()) form.append("note", note.trim());
+    // @ts-ignore RN FormData file
+    form.append("file", { uri: file.uri, name: file.name, type: file.type });
+    const res = await fetch(BASE + "/documents/upload", { method: "POST", body: form as any });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`${res.status}: ${txt}`);
+    }
+    return res.json();
+  },
 
   uploadLab: async (pid: string, lang: string, file: { uri: string; name: string; type: string }) => {
     const form = new FormData();
