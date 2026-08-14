@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Card, Muted } from "@/src/components/ui";
@@ -27,6 +27,7 @@ const FILTERS = [
 
 export default function LabsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { activeId, refreshTick } = useApp();
   const { t, lang } = useI18n();
   const { openLab } = useLog();
@@ -93,6 +94,17 @@ export default function LabsScreen() {
         <View style={styles.stateWrap}><Ionicons name="cloud-offline-outline" size={56} color={colors.onSurfaceSecondary} /><Text style={styles.stateTitle}>{lang === "ru" ? "Не удалось загрузить анализы" : "Could not load labs"}</Text><Pressable onPress={load} style={styles.retryBtn}><Text style={styles.retryText}>{lang === "ru" ? "Повторить" : "Retry"}</Text></Pressable></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + insets.bottom, gap: spacing.md }} showsVerticalScrollIndicator={false}>
+          {labs.length > 0 && (
+            <Pressable style={styles.trendsCard} onPress={() => router.push("/lab-trends" as any)} testID="open-lab-trends">
+              <View style={styles.trendsIcon}><Ionicons name="analytics-outline" size={22} color={colors.onSurface} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trendsTitle}>{lang === "ru" ? "Тренды показателей" : "Biomarker trends"}</Text>
+                <Text style={styles.trendsText}>{lang === "ru" ? "Сравнить повторные результаты во времени" : "Compare repeated results over time"}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={19} color={colors.onSurfaceSecondary} />
+            </Pressable>
+          )}
+
           {flat.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="water-outline" size={56} color={colors.onSurfaceSecondary} />
@@ -136,6 +148,10 @@ const styles = StyleSheet.create({
   stateText: { marginTop: spacing.sm, textAlign: "center" },
   retryBtn: { marginTop: spacing.lg, backgroundColor: colors.onSurface, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
   retryText: { color: colors.surfaceSecondary, fontWeight: "700", fontFamily: fonts.text },
+  trendsCard: { minHeight: 78, flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.glassBorder },
+  trendsIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  trendsTitle: { fontSize: fontSize.lg, fontWeight: "800", color: colors.onSurface, fontFamily: fonts.text },
+  trendsText: { marginTop: 2, fontSize: fontSize.sm, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dot: { width: 10, height: 10, borderRadius: 5 },
   bName: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
