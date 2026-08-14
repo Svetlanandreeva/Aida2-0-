@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
-import { Card, Muted, Title } from "@/src/components/ui";
+import { Card, Muted } from "@/src/components/ui";
 import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
 import { useI18n } from "@/src/i18n";
@@ -33,12 +33,21 @@ export default function LabsScreen() {
 
   const [labs, setLabs] = useState<LabTest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<string>("all");
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setLabs([]);
+      setLoadError(false);
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
     try {
       setLabs(await api.listLabs(activeId));
+    } catch (e) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -69,12 +78,7 @@ export default function LabsScreen() {
       <View style={styles.filterHeader}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((f) => (
-            <Pressable
-              key={f.key}
-              testID={`labfilter-${f.key}`}
-              onPress={() => setFilter(f.key)}
-              style={[styles.chip, filter === f.key ? styles.chipActive : styles.chipInactive]}
-            >
+            <Pressable key={f.key} testID={`labfilter-${f.key}`} onPress={() => setFilter(f.key)} style={[styles.chip, filter === f.key ? styles.chipActive : styles.chipInactive]}>
               <Text style={[styles.chipText, filter === f.key && { color: colors.onBrandPrimary }]}>{label(f.label)}</Text>
             </Pressable>
           ))}
@@ -83,12 +87,17 @@ export default function LabsScreen() {
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={colors.onSurface} /></View>
+      ) : !activeId ? (
+        <View style={styles.stateWrap}><Ionicons name="person-circle-outline" size={56} color={colors.onSurfaceSecondary} /><Text style={styles.stateTitle}>{lang === "ru" ? "Выберите профиль" : "Choose a profile"}</Text><Muted style={styles.stateText}>{lang === "ru" ? "Анализы будут привязаны к выбранному профилю." : "Lab results are linked to the selected profile."}</Muted></View>
+      ) : loadError ? (
+        <View style={styles.stateWrap}><Ionicons name="cloud-offline-outline" size={56} color={colors.onSurfaceSecondary} /><Text style={styles.stateTitle}>{lang === "ru" ? "Не удалось загрузить анализы" : "Could not load labs"}</Text><Pressable onPress={load} style={styles.retryBtn}><Text style={styles.retryText}>{lang === "ru" ? "Повторить" : "Retry"}</Text></Pressable></View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + insets.bottom, gap: spacing.md }} showsVerticalScrollIndicator={false}>
           {flat.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="water-outline" size={56} color={colors.onSurfaceSecondary} />
-              <Muted style={{ marginTop: spacing.md, textAlign: "center" }}>{t("timeline_empty")}</Muted>
+              <Muted style={{ marginTop: spacing.md, textAlign: "center" }}>{labs.length === 0 ? (lang === "ru" ? "Анализов пока нет" : "No lab results yet") : (lang === "ru" ? "По этому фильтру ничего не найдено" : "Nothing matches this filter")}</Muted>
+              {labs.length === 0 && <Pressable onPress={() => openLab()} style={styles.retryBtn}><Text style={styles.retryText}>{lang === "ru" ? "Загрузить анализ" : "Upload lab"}</Text></Pressable>}
             </View>
           ) : (
             flat.map(({ lab, b }, i) => (
@@ -99,9 +108,7 @@ export default function LabsScreen() {
                     <Text style={styles.bName}>{b.name}</Text>
                     <Muted numberOfLines={1}>{lab.title} · {lab.date}{b.reference ? ` · ${t("reference")}: ${b.reference}` : ""}</Muted>
                   </View>
-                  <Text style={[styles.bVal, { color: statusColor(b.status) }]}>
-                    {b.value} {b.unit || ""}
-                  </Text>
+                  <Text style={[styles.bVal, { color: statusColor(b.status) }]}>{b.value} {b.unit || ""}</Text>
                 </View>
               </Card>
             ))
@@ -109,9 +116,7 @@ export default function LabsScreen() {
         </ScrollView>
       )}
 
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => openLab()} testID="labs-upload-fab">
-        <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
-      </Pressable>
+      {!!activeId && !loadError && <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => openLab()} testID="labs-upload-fab"><Ionicons name="add" size={28} color={colors.onBrandPrimary} /></Pressable>}
     </View>
   );
 }
@@ -126,19 +131,14 @@ const styles = StyleSheet.create({
   chipText: { fontSize: fontSize.base, fontWeight: "600", color: colors.onSurfaceSecondary, fontFamily: fonts.text },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   empty: { alignItems: "center", paddingTop: spacing["3xl"] },
+  stateWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  stateTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text, textAlign: "center" },
+  stateText: { marginTop: spacing.sm, textAlign: "center" },
+  retryBtn: { marginTop: spacing.lg, backgroundColor: colors.onSurface, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+  retryText: { color: colors.surfaceSecondary, fontWeight: "700", fontFamily: fonts.text },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dot: { width: 10, height: 10, borderRadius: 5 },
   bName: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
   bVal: { fontSize: fontSize.lg, fontWeight: "800", fontFamily: fonts.text },
-  fab: {
-    position: "absolute",
-    right: spacing.lg,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 4,
-  },
+  fab: { position: "absolute", right: spacing.lg, width: 60, height: 60, borderRadius: 30, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", elevation: 4 },
 });
