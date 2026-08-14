@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TopBar } from "@/src/components/TopBar";
 import { GradientCard } from "@/src/components/ui";
+import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
 import { useI18n } from "@/src/i18n";
 import { api } from "@/src/api";
@@ -23,7 +24,8 @@ export default function HealthHub() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { activeId, refreshTick } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const { openMenu } = useLog();
   const [refreshing, setRefreshing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -44,7 +46,7 @@ export default function HealthHub() {
         meds: meds.length,
       });
     } catch (e) {
-      // ignore
+      // preview/API may be unavailable — keep the hub usable
     }
   }, [activeId]);
 
@@ -75,6 +77,19 @@ export default function HealthHub() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.onSurface} />}
       >
+        <Pressable style={styles.logCard} onPress={openMenu} testID="health-log-data-button">
+          <View style={styles.logIcon}>
+            <Ionicons name="add" size={24} color={colors.surfaceSecondary} />
+          </View>
+          <View style={styles.logCopy}>
+            <Text style={styles.logTitle}>{lang === "ru" ? "Добавить данные" : "Add health data"}</Text>
+            <Text style={styles.logSubtitle}>
+              {lang === "ru" ? "Давление, симптомы, сон, измерения и другое" : "Vitals, symptoms, sleep, measurements and more"}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.surfaceSecondary} />
+        </Pressable>
+
         <View style={styles.grid}>
           {mods.map((m) => (
             <Pressable
@@ -89,9 +104,7 @@ export default function HealthHub() {
                 </View>
                 <Text style={styles.modLabel}>{m.label}</Text>
                 {typeof m.count === "number" && (
-                  <Text style={styles.modCount}>
-                    {m.count} {m.count === 0 ? "" : ""}
-                  </Text>
+                  <Text style={styles.modCount}>{m.count}</Text>
                 )}
               </GradientCard>
             </Pressable>
@@ -105,6 +118,39 @@ export default function HealthHub() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface },
+  logCard: {
+    minHeight: 86,
+    borderRadius: radius.xl,
+    backgroundColor: colors.onSurface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  logIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logCopy: { flex: 1 },
+  logTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    color: colors.surfaceSecondary,
+    fontFamily: fonts.text,
+  },
+  logSubtitle: {
+    marginTop: 3,
+    fontSize: fontSize.sm,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.68)",
+    fontFamily: fonts.text,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   cell: { width: "47.8%" },
   modCard: { minHeight: 130, justifyContent: "space-between", padding: spacing.lg },
