@@ -32,6 +32,7 @@ export default function Root({ children }: PropsWithChildren) {
               }
               [role="tablist"] [role="tab"] * { overflow: visible !important; }
               [role="heading"], [role="heading"] * { overflow: visible !important; }
+              [data-testid="log-data-button"] { display: none !important; }
             `,
           }}
         />
