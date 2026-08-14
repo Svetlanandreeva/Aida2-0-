@@ -96,16 +96,96 @@ export type Task = {
   done: boolean;
 };
 
-async function req(path: string, options?: RequestInit) {
-  const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`${res.status}: ${txt}`);
+const PREVIEW_PROFILE: Profile = {
+  id: "preview-local",
+  name: "Мой профиль",
+  kind: "me",
+  allergies: [],
+  chronic_conditions: [],
+};
+
+const PREVIEW_WIDGETS = [
+  { id: "companion", enabled: true, order: 0 },
+  { id: "readiness", enabled: true, order: 1 },
+  { id: "next_medication", enabled: true, order: 2 },
+  { id: "recent_symptom", enabled: true, order: 3 },
+  { id: "latest_lab", enabled: true, order: 4 },
+  { id: "quests", enabled: true, order: 5 },
+  { id: "quick_note", enabled: true, order: 6 },
+];
+
+function previewResponse(path: string, options?: RequestInit): any | null {
+  const method = (options?.method || "GET").toUpperCase();
+
+  if (path === "/seed") return { ok: true, preview: true };
+
+  if (path === "/profiles" && method === "GET") return [PREVIEW_PROFILE];
+  if (path === "/profiles" && method === "POST") {
+    const data = options?.body ? JSON.parse(String(options.body)) : {};
+    return { ...PREVIEW_PROFILE, ...data, id: "preview-local" };
   }
-  return res.json();
+  if (path.startsWith("/profiles/") && method === "PUT") {
+    const data = options?.body ? JSON.parse(String(options.body)) : {};
+    return { ...PREVIEW_PROFILE, ...data };
+  }
+  if (path.startsWith("/profiles/") && method === "DELETE") return { ok: true };
+
+  if (path.startsWith("/analytics/readiness/")) {
+    return {
+      scores: { labs: 0, symptoms: 0, medications: 0, vitals: 0, checkins: 0 },
+      overall: 0,
+    };
+  }
+
+  if (path.startsWith("/gamification/")) {
+    return { xp: 0, level: 1, streak: 0, quests: [] };
+  }
+
+  if (path.startsWith("/puzzle/")) {
+    return { profile_id: PREVIEW_PROFILE.id, widgets: PREVIEW_WIDGETS };
+  }
+
+  if (path.startsWith("/overview/")) {
+    return { attention: [], ai_summary: null };
+  }
+
+  if (path.startsWith("/report/")) {
+    return { profile_id: PREVIEW_PROFILE.id, summary: null, items: [] };
+  }
+
+  if (/^\/(labs|symptoms|medications|chat|vitals|checkins|tasks)(\?|$)/.test(path)) {
+    return method === "GET" ? [] : { ok: true };
+  }
+
+  if (/^\/(labs|symptoms|medications|chat|vitals|checkins|tasks)\//.test(path)) {
+    return { ok: true };
+  }
+
+  return null;
+}
+
+async function req(path: string, options?: RequestInit) {
+  try {
+    const res = await fetch(BASE + path, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`${res.status}: ${txt}`);
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error("Aida API is not connected to this web preview yet");
+    }
+
+    return res.json();
+  } catch (error) {
+    const preview = previewResponse(path, options);
+    if (preview !== null) return preview;
+    throw error;
+  }
 }
 
 export const api = {
