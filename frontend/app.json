@@ -23,7 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.lifehealthhub.b7m5uj",
-      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES", "SCHEDULE_EXACT_ALARM"]
     },
     "web": {
       "bundler": "metro",
