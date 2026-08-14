@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 def _now():
@@ -32,6 +32,7 @@ class TaskCreate(BaseModel):
     kind: str = "custom"
     due: Optional[str] = None
     reminder_at: Optional[str] = None
+    notification_id: Optional[str] = None
     action_route: Optional[str] = None
     source_type: Optional[str] = None
     source_id: Optional[str] = None
@@ -43,6 +44,7 @@ class TaskUpdate(BaseModel):
     kind: Optional[str] = None
     due: Optional[str] = None
     reminder_at: Optional[str] = None
+    notification_id: Optional[str] = None
     action_route: Optional[str] = None
     source_type: Optional[str] = None
     source_id: Optional[str] = None
@@ -58,6 +60,7 @@ def _normalize_task(doc):
     result.setdefault("status", "done" if result.get("done") else "pending")
     result["done"] = result.get("status") == "done" or bool(result.get("done"))
     result.setdefault("reminder_at", None)
+    result.setdefault("notification_id", None)
     result.setdefault("action_route", ACTION_ROUTES.get(result.get("kind", "custom")))
     result.setdefault("source_type", None)
     result.setdefault("source_id", None)
