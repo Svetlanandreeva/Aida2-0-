@@ -31,13 +31,22 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setMessages([]);
+      setLoadError(false);
+      setLoading(false);
+      return;
+    }
+    setLoadError(false);
     try {
       const msgs = await api.listChat(activeId);
       setMessages(msgs);
+    } catch (e) {
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -84,7 +93,7 @@ export default function ChatScreen() {
   };
 
   const starters = [t("starter_1"), t("starter_2"), t("starter_3")];
-  const showEmpty = !loading && messages.length === 0;
+  const showEmpty = !loading && !loadError && !!activeId && messages.length === 0;
 
   return (
     <View style={styles.container}>
@@ -116,6 +125,18 @@ export default function ChatScreen() {
         >
           {loading ? (
             <ActivityIndicator color={colors.brand} style={{ marginTop: spacing["2xl"] }} />
+          ) : !activeId ? (
+            <View style={styles.stateWrap}>
+              <Ionicons name="person-circle-outline" size={52} color={colors.onSurfaceSecondary} />
+              <Text style={styles.stateTitle}>{lang === "ru" ? "Выберите профиль" : "Choose a profile"}</Text>
+              <Text style={styles.stateText}>{lang === "ru" ? "После выбора профиля Аида сможет использовать его данные и историю." : "Choose a profile so Aida can use its health data and history."}</Text>
+            </View>
+          ) : loadError ? (
+            <View style={styles.stateWrap}>
+              <Ionicons name="cloud-offline-outline" size={52} color={colors.onSurfaceSecondary} />
+              <Text style={styles.stateTitle}>{lang === "ru" ? "Не удалось загрузить чат" : "Could not load chat"}</Text>
+              <Pressable onPress={load} style={styles.retryBtn}><Text style={styles.retryText}>{lang === "ru" ? "Повторить" : "Retry"}</Text></Pressable>
+            </View>
           ) : (
             <>
               <View style={styles.greetRow}>
@@ -169,17 +190,18 @@ export default function ChatScreen() {
               testID="chat-input"
               value={input}
               onChangeText={setInput}
-              placeholder={t("chat_placeholder")}
+              placeholder={!activeId ? (lang === "ru" ? "Сначала выберите профиль" : "Choose a profile first") : t("chat_placeholder")}
               placeholderTextColor={colors.onSurfaceSecondary}
               style={styles.input}
               multiline
+              editable={!!activeId && !loadError}
               onSubmitEditing={() => send(input)}
             />
             <Pressable
               testID="chat-send"
               onPress={() => send(input)}
-              disabled={!input.trim() || sending}
-              style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
+              disabled={!input.trim() || sending || !activeId || loadError}
+              style={[styles.sendBtn, (!input.trim() || sending || !activeId || loadError) && { opacity: 0.5 }]}
             >
               <Ionicons name="arrow-up" size={22} color={colors.onBrandPrimary} />
             </Pressable>
@@ -217,48 +239,16 @@ const styles = StyleSheet.create({
   bubbleTextUser: { fontSize: fontSize.base, color: colors.onSurface, lineHeight: 21, fontFamily: fonts.text },
   typingText: { fontSize: fontSize.base, color: colors.onSurfaceSecondary, fontStyle: "italic", fontFamily: fonts.text },
   starters: { gap: spacing.sm, marginTop: spacing.lg },
-  starterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
+  starterChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   starterText: { flex: 1, fontSize: fontSize.base, color: colors.onSurface, fontFamily: fonts.text },
-  inputBar: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
+  inputBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   disclaimer: { fontSize: 11, color: colors.onSurfaceSecondary, textAlign: "center", marginBottom: 6, fontFamily: fonts.text },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm },
-  input: {
-    flex: 1,
-    minHeight: 48,
-    maxHeight: 120,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    fontSize: fontSize.lg,
-    color: colors.onSurface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    fontFamily: fonts.text,
-  },
-  sendBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.brandPrimary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  input: { flex: 1, minHeight: 48, maxHeight: 120, backgroundColor: colors.surfaceSecondary, borderRadius: radius.xl, paddingHorizontal: spacing.lg, paddingVertical: 12, color: colors.onSurface, borderWidth: 1, borderColor: colors.border, fontFamily: fonts.text },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  stateWrap: { alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"], paddingHorizontal: spacing.xl },
+  stateTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text, textAlign: "center" },
+  stateText: { marginTop: spacing.sm, fontSize: fontSize.base, color: colors.onSurfaceSecondary, fontFamily: fonts.text, textAlign: "center", lineHeight: 21 },
+  retryBtn: { marginTop: spacing.lg, backgroundColor: colors.onSurface, borderRadius: radius.pill, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+  retryText: { color: colors.surfaceSecondary, fontWeight: "700", fontFamily: fonts.text },
 });
