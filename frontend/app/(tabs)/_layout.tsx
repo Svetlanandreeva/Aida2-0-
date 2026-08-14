@@ -1,7 +1,6 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fonts } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
@@ -14,13 +13,13 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.brand,
+        tabBarActiveTintColor: colors.onSurface,
         tabBarInactiveTintColor: colors.onSurfaceSecondary,
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.surfaceSecondary,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60 + insets.bottom,
+          height: 62 + insets.bottom,
           paddingBottom: insets.bottom + 6,
           paddingTop: 8,
         },
@@ -32,16 +31,16 @@ export default function TabsLayout() {
         options={{
           title: t("tab_home"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "grid" : "grid-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "grid" : "grid-outline"} size={23} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="timeline"
+        name="health"
         options={{
-          title: t("tab_timeline"),
+          title: t("tab_health"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "time" : "time-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "heart" : "heart-outline"} size={23} color={color} />
           ),
         }}
       />
@@ -50,7 +49,16 @@ export default function TabsLayout() {
         options={{
           title: t("tab_chat"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={23} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: t("tab_tasks"),
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? "checkbox" : "checkbox-outline"} size={23} color={color} />
           ),
         }}
       />
@@ -59,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_profile"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={24} color={color} />
+            <Ionicons name={focused ? "person" : "person-outline"} size={23} color={color} />
           ),
         }}
       />

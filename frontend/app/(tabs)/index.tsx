@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TopBar } from "@/src/components/TopBar";
 import { Card, GradientCard, Title, Muted, ProgressBar, PrimaryButton, Tag } from "@/src/components/ui";
@@ -37,6 +37,7 @@ const WIDGET_LABELS: Record<string, { ru: string; en: string; icon: any }> = {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { activeId, activeProfile, refreshTick } = useApp();
   const { t, lang } = useI18n();
   const { openMenu, openLab, toast } = useLog();
@@ -49,6 +50,7 @@ export default function HomeScreen() {
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [labs, setLabs] = useState<LabTest[]>([]);
   const [widgets, setWidgets] = useState<{ id: string; enabled: boolean; order: number }[]>([]);
+  const [overview, setOverview] = useState<{ attention: any[]; ai_summary: string | null } | null>(null);
   const [customize, setCustomize] = useState(false);
 
   const load = useCallback(async () => {
@@ -73,7 +75,9 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeId]);
+    // overview may call AI — load separately so it doesn't block the UI
+    api.overview(activeId, lang).then(setOverview).catch(() => {});
+  }, [activeId, lang]);
 
   useFocusEffect(
     useCallback(() => {
@@ -275,6 +279,44 @@ export default function HomeScreen() {
             </GradientCard>
           )}
 
+          {/* AI daily summary */}
+          {overview?.ai_summary ? (
+            <GradientCard gradient={gradients.lime} style={{ marginBottom: spacing.md }} testID="ai-day-card">
+              <View style={styles.aiHead}>
+                <Ionicons name="sparkles" size={16} color={colors.onSurface} />
+                <Text style={styles.aiHeadText}>{t("ai_day")}</Text>
+              </View>
+              <Text style={styles.aiText}>{overview.ai_summary}</Text>
+            </GradientCard>
+          ) : null}
+
+          {/* Needs attention */}
+          <Card style={{ marginBottom: spacing.md }} testID="attention-card">
+            <WidgetHeader icon="alert-circle-outline" label={t("needs_attention")} />
+            {overview && overview.attention.length > 0 ? (
+              overview.attention.map((a, i) => (
+                <Pressable
+                  key={i}
+                  style={styles.attnRow}
+                  testID={`attention-${i}`}
+                  onPress={() => router.push((a.type === "bp" ? "/pressure" : a.type === "symptom" ? "/history" : "/labs") as any)}
+                >
+                  <View style={[styles.attnDot, { backgroundColor: a.severity === "error" ? colors.error : colors.warning }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.attnTitle}>{a.title}</Text>
+                    {a.subtitle ? <Muted>{a.subtitle}</Muted> : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
+                </Pressable>
+              ))
+            ) : (
+              <View style={styles.allGood}>
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                <Muted style={{ flex: 1 }}>{t("all_good")}</Muted>
+              </View>
+            )}
+          </Card>
+
           {/* Upload + connect row */}
           <View style={styles.dualRow}>
             <Card style={styles.dualCard} onPress={() => openLab()} testID="upload-records-card">
@@ -418,6 +460,13 @@ const styles = StyleSheet.create({
   },
   dualTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, marginTop: spacing.lg, fontFamily: fonts.text, letterSpacing: -0.2 },
   widgetHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
+  aiHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
+  aiHeadText: { fontSize: fontSize.sm, color: colors.onSurface, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: fonts.text },
+  aiText: { fontSize: fontSize.base, color: colors.onSurface, lineHeight: 21, fontFamily: fonts.text },
+  attnRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
+  attnDot: { width: 10, height: 10, borderRadius: 5 },
+  attnTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
+  allGood: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   widgetHeaderText: {
     fontSize: fontSize.sm,
     color: colors.onSurfaceSecondary,

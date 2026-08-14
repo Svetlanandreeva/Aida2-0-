@@ -180,6 +180,8 @@ async def get_profile_context(profile_id: str) -> str:
     meds = await db.medications.find({"profile_id": profile_id, "active": True}, {"_id": 0}).to_list(50)
     recent_sym = await db.symptoms.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(10)
     recent_labs = await db.labs.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(5)
+    recent_vitals = await db.vitals.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(10)
+    recent_checkins = await db.checkins.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(7)
 
     ctx = {
         "profile": {
@@ -196,6 +198,8 @@ async def get_profile_context(profile_id: str) -> str:
             {"title": l["title"], "date": l["date"], "biomarkers": l.get("biomarkers", [])[:10]}
             for l in recent_labs
         ],
+        "recent_vitals": recent_vitals,
+        "recent_checkins": recent_checkins,
     }
     return json.dumps(ctx, ensure_ascii=False, default=str)
 
@@ -738,8 +742,266 @@ async def seed():
         source="manual",
     ).model_dump())
 
+    # Seed blood pressure + weight
+    for i, (sys, dia, pul) in enumerate([(122, 78, 70), (135, 85, 74), (128, 82, 72), (141, 91, 78)]):
+        await db.vitals.insert_one(Vital(
+            profile_id=me.id, kind="bp", systolic=sys, diastolic=dia, pulse=pul,
+            date=(datetime.now(timezone.utc) - timedelta(days=i * 2)).isoformat(),
+        ).model_dump())
+    await db.vitals.insert_one(Vital(
+        profile_id=me.id, kind="weight", value=61, unit="кг",
+        date=(today - timedelta(days=1)).isoformat(),
+    ).model_dump())
+
+    # Seed check-ins
+    for i, (m, e, s) in enumerate([(4, 3, 2), (3, 3, 3), (4, 4, 2)]):
+        await db.checkins.insert_one(Checkin(
+            profile_id=me.id, mood=m, energy=e, stress=s, anxiety=2, sleep=3,
+            date=(datetime.now(timezone.utc) - timedelta(days=i)).isoformat(),
+        ).model_dump())
+
+    # Seed tasks
+    await db.tasks.insert_one(Task(
+        profile_id=me.id, title="Принять Витамин D3", kind="medication",
+        due=today.isoformat(), done=False,
+    ).model_dump())
+    await db.tasks.insert_one(Task(
+        profile_id=me.id, title="Измерить давление", kind="pressure",
+        due=today.isoformat(), done=False,
+    ).model_dump())
+    await db.tasks.insert_one(Task(
+        profile_id=me.id, title="Заполнить дневник самочувствия", kind="diary",
+        due=today.isoformat(), done=True,
+    ).model_dump())
+
     docs = await db.profiles.find({}, {"_id": 0}).to_list(10)
     return {"seeded": True, "profiles": docs}
+
+
+# ============ Vitals (measurements & blood pressure) ============
+
+class Vital(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    profile_id: str
+    kind: str  # "bp" | "weight" | "temperature" | "pulse" | "spo2" | "waist"
+    systolic: Optional[float] = None
+    diastolic: Optional[float] = None
+    pulse: Optional[float] = None
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    note: Optional[str] = None
+    date: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class VitalCreate(BaseModel):
+    profile_id: str
+    kind: str
+    systolic: Optional[float] = None
+    diastolic: Optional[float] = None
+    pulse: Optional[float] = None
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    note: Optional[str] = None
+    date: Optional[str] = None
+
+
+@api.get("/vitals", response_model=List[Vital])
+async def list_vitals(profile_id: str, kind: Optional[str] = None):
+    q: Dict[str, Any] = {"profile_id": profile_id}
+    if kind:
+        q["kind"] = kind
+    docs = await db.vitals.find(q, {"_id": 0}).sort("date", -1).to_list(500)
+    return docs
+
+
+@api.post("/vitals", response_model=Vital)
+async def create_vital(data: VitalCreate):
+    d = data.model_dump()
+    if not d.get("date"):
+        d["date"] = datetime.now(timezone.utc).isoformat()
+    v = Vital(**d)
+    await db.vitals.insert_one(v.model_dump())
+    return v
+
+
+@api.delete("/vitals/{vital_id}")
+async def delete_vital(vital_id: str):
+    await db.vitals.delete_one({"id": vital_id})
+    return {"ok": True}
+
+
+# ============ Check-ins (mental / wellbeing) ============
+
+class Checkin(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    profile_id: str
+    mood: int = 3       # 1-5
+    energy: int = 3     # 1-5
+    stress: int = 3     # 1-5
+    anxiety: int = 3    # 1-5
+    sleep: int = 3      # 1-5
+    triggers: Optional[str] = None
+    note: Optional[str] = None
+    date: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class CheckinCreate(BaseModel):
+    profile_id: str
+    mood: int = 3
+    energy: int = 3
+    stress: int = 3
+    anxiety: int = 3
+    sleep: int = 3
+    triggers: Optional[str] = None
+    note: Optional[str] = None
+    date: Optional[str] = None
+
+
+@api.get("/checkins", response_model=List[Checkin])
+async def list_checkins(profile_id: str):
+    docs = await db.checkins.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(400)
+    return docs
+
+
+@api.post("/checkins", response_model=Checkin)
+async def create_checkin(data: CheckinCreate):
+    d = data.model_dump()
+    if not d.get("date"):
+        d["date"] = datetime.now(timezone.utc).isoformat()
+    c = Checkin(**d)
+    await db.checkins.insert_one(c.model_dump())
+    return c
+
+
+@api.delete("/checkins/{checkin_id}")
+async def delete_checkin(checkin_id: str):
+    await db.checkins.delete_one({"id": checkin_id})
+    return {"ok": True}
+
+
+# ============ Tasks ============
+
+class Task(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    profile_id: str
+    title: str
+    kind: str = "custom"  # medication|pressure|lab|upload|diary|visit|custom
+    due: Optional[str] = None  # ISO datetime/date
+    done: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class TaskCreate(BaseModel):
+    profile_id: str
+    title: str
+    kind: str = "custom"
+    due: Optional[str] = None
+
+
+@api.get("/tasks", response_model=List[Task])
+async def list_tasks(profile_id: str):
+    docs = await db.tasks.find({"profile_id": profile_id}, {"_id": 0}).sort("created_at", -1).to_list(400)
+    return docs
+
+
+@api.post("/tasks", response_model=Task)
+async def create_task(data: TaskCreate):
+    task = Task(**data.model_dump())
+    await db.tasks.insert_one(task.model_dump())
+    return task
+
+
+@api.put("/tasks/{task_id}/toggle", response_model=Task)
+async def toggle_task(task_id: str):
+    doc = await db.tasks.find_one({"id": task_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Not found")
+    await db.tasks.update_one({"id": task_id}, {"$set": {"done": not doc.get("done", False)}})
+    doc["done"] = not doc.get("done", False)
+    return doc
+
+
+@api.delete("/tasks/{task_id}")
+async def delete_task(task_id: str):
+    await db.tasks.delete_one({"id": task_id})
+    return {"ok": True}
+
+
+# ============ Daily overview / attention ============
+
+@api.get("/overview/{profile_id}")
+async def overview(profile_id: str, language: str = "ru"):
+    profile = await db.profiles.find_one({"id": profile_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(404, "Profile not found")
+
+    ru = language.startswith("ru")
+    since7 = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
+
+    attention: List[Dict[str, Any]] = []
+
+    # out-of-range biomarkers from latest lab
+    last_lab = await db.labs.find({"profile_id": profile_id}, {"_id": 0}).sort("date", -1).to_list(1)
+    if last_lab:
+        abn = [b for b in last_lab[0].get("biomarkers", []) if b.get("status") in ("high", "low")]
+        for b in abn[:4]:
+            arrow = "↑" if b.get("status") == "high" else "↓"
+            attention.append({
+                "type": "lab",
+                "severity": "warning",
+                "title": f"{b.get('name')} {arrow} {b.get('value')} {b.get('unit') or ''}".strip(),
+                "subtitle": (f"Норма: {b.get('reference')}" if ru else f"Ref: {b.get('reference')}") if b.get("reference") else "",
+            })
+
+    # blood pressure
+    last_bp = await db.vitals.find({"profile_id": profile_id, "kind": "bp"}, {"_id": 0}).sort("date", -1).to_list(1)
+    if last_bp:
+        s = last_bp[0].get("systolic") or 0
+        d = last_bp[0].get("diastolic") or 0
+        if s >= 140 or d >= 90:
+            attention.append({
+                "type": "bp",
+                "severity": "error",
+                "title": (f"Повышенное давление {int(s)}/{int(d)}" if ru else f"High blood pressure {int(s)}/{int(d)}"),
+                "subtitle": (last_bp[0].get("date") or "")[:10],
+            })
+
+    # strong symptoms last 7 days
+    strong = await db.symptoms.find(
+        {"profile_id": profile_id, "date": {"$gte": since7}, "severity": {"$gte": 7}}, {"_id": 0}
+    ).sort("date", -1).to_list(5)
+    for s in strong:
+        attention.append({
+            "type": "symptom",
+            "severity": "warning",
+            "title": (f"Выраженный симптом: {s['name']}" if ru else f"Strong symptom: {s['name']}"),
+            "subtitle": f"{s['severity']}/10 · {s['date']}",
+        })
+
+    # AI summary of the day (best-effort)
+    ai_summary = None
+    if EMERGENT_LLM_KEY:
+        try:
+            ctx = await get_profile_context(profile_id)
+            lang_word = "русском" if ru else "английском"
+            system = (
+                "Ты — Аида. Дай очень короткий тёплый итог дня по данным пользователя на "
+                f"{lang_word} языке: 1-2 предложения. Без диагнозов. Если данных мало — мягко предложи добавить."
+            )
+            c = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"overview-{profile_id}",
+                system_message=system,
+            ).with_model("gemini", GEMINI_MODEL)
+            resp = await c.send_message(UserMessage(text=f"Данные пользователя: {ctx}"))
+            ai_summary = (resp if isinstance(resp, str) else str(resp)).strip()
+        except Exception:
+            logging.exception("overview AI failed")
+            ai_summary = None
+
+    return {"attention": attention, "ai_summary": ai_summary}
 
 
 # ============ App wiring ============

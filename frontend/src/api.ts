@@ -61,6 +61,41 @@ export type ChatMsg = {
   created_at?: string;
 };
 
+export type Vital = {
+  id: string;
+  profile_id: string;
+  kind: string;
+  systolic?: number | null;
+  diastolic?: number | null;
+  pulse?: number | null;
+  value?: number | null;
+  unit?: string | null;
+  note?: string | null;
+  date: string;
+};
+
+export type Checkin = {
+  id: string;
+  profile_id: string;
+  mood: number;
+  energy: number;
+  stress: number;
+  anxiety: number;
+  sleep: number;
+  triggers?: string | null;
+  note?: string | null;
+  date: string;
+};
+
+export type Task = {
+  id: string;
+  profile_id: string;
+  title: string;
+  kind: string;
+  due?: string | null;
+  done: boolean;
+};
+
 async function req(path: string, options?: RequestInit) {
   const res = await fetch(BASE + path, {
     headers: { "Content-Type": "application/json" },
@@ -117,6 +152,25 @@ export const api = {
     }),
   report: (pid: string, days: number, lang: string): Promise<any> =>
     req(`/report/${pid}?days=${days}&language=${lang}`),
+
+  listVitals: (pid: string, kind?: string): Promise<Vital[]> =>
+    req(`/vitals?profile_id=${pid}${kind ? `&kind=${kind}` : ""}`),
+  createVital: (data: any): Promise<Vital> =>
+    req("/vitals", { method: "POST", body: JSON.stringify(data) }),
+  deleteVital: (id: string) => req(`/vitals/${id}`, { method: "DELETE" }),
+
+  listCheckins: (pid: string): Promise<Checkin[]> => req(`/checkins?profile_id=${pid}`),
+  createCheckin: (data: any): Promise<Checkin> =>
+    req("/checkins", { method: "POST", body: JSON.stringify(data) }),
+
+  listTasks: (pid: string): Promise<Task[]> => req(`/tasks?profile_id=${pid}`),
+  createTask: (data: any): Promise<Task> =>
+    req("/tasks", { method: "POST", body: JSON.stringify(data) }),
+  toggleTask: (id: string): Promise<Task> => req(`/tasks/${id}/toggle`, { method: "PUT" }),
+  deleteTask: (id: string) => req(`/tasks/${id}`, { method: "DELETE" }),
+
+  overview: (pid: string, lang: string): Promise<{ attention: any[]; ai_summary: string | null }> =>
+    req(`/overview/${pid}?language=${lang}`),
 
   uploadLab: async (pid: string, lang: string, file: { uri: string; name: string; type: string }) => {
     const form = new FormData();

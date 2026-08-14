@@ -15,7 +15,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { TopBar } from "@/src/components/TopBar";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { Card, Title, Body, Muted } from "@/src/components/ui";
 import { useLog } from "@/src/components/LogProvider";
 import { useApp } from "@/src/store";
@@ -41,7 +41,7 @@ export default function TimelineScreen() {
   const insets = useSafeAreaInsets();
   const { activeId, refreshTick, bumpRefresh } = useApp();
   const { t } = useI18n();
-  const { openLab, openMenu } = useLog();
+  const { openLab } = useLog();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,14 +218,12 @@ export default function TimelineScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <TopBar />
-        <Text style={styles.pageTitle}>{t("timeline_title")}</Text>
+      <ScreenHeader title={t("m_history")} />
+      <View style={styles.filterHeader}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
-          style={{ marginTop: spacing.sm }}
         >
           {FILTERS.map((f) => (
             <Pressable
@@ -254,7 +252,7 @@ export default function TimelineScreen() {
         </ScrollView>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 + insets.bottom, gap: spacing.md }}
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 + insets.bottom, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
         >
@@ -262,7 +260,7 @@ export default function TimelineScreen() {
         </ScrollView>
       )}
 
-      <Pressable style={[styles.fab, { bottom: insets.bottom + 74 }]} onPress={() => openLab()} testID="upload-lab-fab">
+      <Pressable style={[styles.fab, { bottom: insets.bottom + 24 }]} onPress={() => openLab()} testID="upload-lab-fab">
         <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
       </Pressable>
     </View>
@@ -271,21 +269,13 @@ export default function TimelineScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  header: {
-    paddingHorizontal: spacing.lg,
+  filterHeader: {
     paddingBottom: spacing.md,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  pageTitle: {
-    fontSize: fontSize["2xl"],
-    fontWeight: "700",
-    color: colors.onSurface,
-    marginTop: spacing.md,
-    fontFamily: fonts.display,
-  },
-  filterRow: { gap: spacing.sm, paddingRight: spacing.lg },
+  filterRow: { gap: spacing.sm, paddingHorizontal: spacing.lg },
   filterChip: { height: 36, paddingHorizontal: spacing.lg, borderRadius: radius.pill, justifyContent: "center", flexShrink: 0 },
   filterActive: { backgroundColor: colors.brandPrimary },
   filterInactive: { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },

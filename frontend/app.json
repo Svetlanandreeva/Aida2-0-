@@ -12,14 +12,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.lifehealthhub.b7m5uj",
       "infoPlist": {
-        "NSCameraUsageDescription": "Take photos of lab results to save them",
-        "NSPhotoLibraryUsageDescription": "Attach lab result images from your gallery"
+        "NSCameraUsageDescription": "Scan lab reports to track your results",
+        "NSPhotoLibraryUsageDescription": "Upload lab report photos to your timeline"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#FAFAEB"
+        "backgroundColor": "#EAEAE8"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.lifehealthhub.b7m5uj",
@@ -32,13 +32,15 @@
     },
     "plugins": [
       "expo-router",
+      "expo-image-picker",
+      "expo-document-picker",
       [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#EAEAE8"
         }
       ]
     ],

@@ -126,6 +126,61 @@ const D: Dict = {
   ai_observations: { ru: "Наблюдения Аиды (не диагноз)", en: "Aida's observations (not a diagnosis)" },
   report_generating: { ru: "Формируем отчёт…", en: "Generating report…" },
   no_records: { ru: "Нет записей за период", en: "No records in this period" },
+
+  // Health hub / modules
+  tab_health: { ru: "Здоровье", en: "Health" },
+  tab_tasks: { ru: "Задачи", en: "Tasks" },
+  health_modules: { ru: "Модули здоровья", en: "Health modules" },
+  m_labs: { ru: "Анализы", en: "Lab tests" },
+  m_pressure: { ru: "Давление", en: "Blood pressure" },
+  m_mind: { ru: "Психика", en: "Mind & mood" },
+  m_meds: { ru: "Лекарства", en: "Medications" },
+  m_measures: { ru: "Измерения", en: "Measurements" },
+  m_history: { ru: "История здоровья", en: "Health history" },
+  back: { ru: "Назад", en: "Back" },
+
+  // Overview / home extras
+  today_state: { ru: "Общее состояние сегодня", en: "Today's overview" },
+  ai_day: { ru: "ИИ-итог дня", en: "AI daily summary" },
+  needs_attention: { ru: "Требует внимания", en: "Needs attention" },
+  all_good: { ru: "Всё спокойно — тревожных сигналов нет", en: "All calm — no alerts" },
+  quick_checkin: { ru: "Быстрый чек-ин", en: "Quick check-in" },
+  view_details: { ru: "Подробнее", en: "Details" },
+  not_enough_data: { ru: "Недостаточно данных", en: "Not enough data" },
+
+  // Pressure
+  add_pressure: { ru: "Добавить измерение", en: "Add measurement" },
+  systolic: { ru: "Систолическое (верхнее)", en: "Systolic (upper)" },
+  diastolic: { ru: "Диастолическое (нижнее)", en: "Diastolic (lower)" },
+  pulse: { ru: "Пульс", en: "Pulse" },
+  avg: { ru: "Среднее", en: "Average" },
+  min: { ru: "Мин", en: "Min" },
+  max: { ru: "Макс", en: "Max" },
+  last_7: { ru: "7 дней", en: "7 days" },
+  last_30: { ru: "30 дней", en: "30 days" },
+  pressure_empty: { ru: "Пока нет измерений давления", en: "No blood pressure readings yet" },
+
+  // Mind check-in
+  mood: { ru: "Настроение", en: "Mood" },
+  energy: { ru: "Энергия", en: "Energy" },
+  stress: { ru: "Стресс", en: "Stress" },
+  anxiety: { ru: "Тревога", en: "Anxiety" },
+  sleep_q: { ru: "Качество сна", en: "Sleep quality" },
+  triggers: { ru: "Триггеры / события", en: "Triggers / events" },
+  save_checkin: { ru: "Сохранить чек-ин", en: "Save check-in" },
+  mind_empty: { ru: "Записывайте самочувствие, чтобы видеть динамику", en: "Log how you feel to see trends" },
+  checkin_saved: { ru: "Чек-ин сохранён", en: "Check-in saved" },
+
+  // Tasks
+  tasks_today: { ru: "Сегодня", en: "Today" },
+  tasks_upcoming: { ru: "Предстоящие", en: "Upcoming" },
+  tasks_done: { ru: "Выполнено", en: "Done" },
+  add_task: { ru: "Добавить задачу", en: "Add task" },
+  task_title: { ru: "Название задачи", en: "Task title" },
+  task_type: { ru: "Тип", en: "Type" },
+  tasks_empty: { ru: "Задач пока нет", en: "No tasks yet" },
+  measure_pressure: { ru: "Измерить давление", en: "Measure pressure" },
+  fill_diary: { ru: "Заполнить дневник", en: "Fill diary" },
 };
 
 export const t = (key: keyof typeof D | string, lang: Lang): string => {
