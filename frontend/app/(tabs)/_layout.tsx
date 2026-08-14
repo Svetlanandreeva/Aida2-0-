@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +9,15 @@ import { useI18n } from "@/src/i18n";
 export default function TabsLayout() {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
-  const safeBottom = Math.max(insets.bottom, Platform.OS === "web" ? 12 : 8);
+  const { width } = useWindowDimensions();
+
+  // A normal mobile browser already shrinks its visual viewport around browser chrome.
+  // Adding an extra synthetic safe-area on web lifts the tab bar too high, so only
+  // native builds use the device safe-area inset.
+  const isWeb = Platform.OS === "web";
+  const compact = width < 390;
+  const safeBottom = isWeb ? 0 : Math.max(insets.bottom, 8);
+  const baseHeight = compact ? 62 : 66;
 
   return (
     <Tabs
@@ -22,23 +30,25 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 72 + safeBottom,
+          height: baseHeight + safeBottom,
           paddingBottom: safeBottom,
-          paddingTop: 8,
+          paddingTop: compact ? 5 : 7,
         },
         tabBarItemStyle: {
-          paddingTop: 2,
-          paddingBottom: 2,
+          minWidth: 0,
+          paddingHorizontal: 0,
+          paddingTop: 1,
+          paddingBottom: 1,
         },
         tabBarIconStyle: {
           marginTop: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          lineHeight: 15,
+          fontSize: compact ? 10 : 11,
+          lineHeight: compact ? 13 : 15,
           fontWeight: "600",
           fontFamily: fonts.text,
-          marginTop: 2,
+          marginTop: 1,
           marginBottom: 0,
         },
       }}
@@ -48,7 +58,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_home"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "grid" : "grid-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "grid" : "grid-outline"} size={compact ? 21 : 23} color={color} />
           ),
         }}
       />
@@ -57,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_health"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "heart" : "heart-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "heart" : "heart-outline"} size={compact ? 21 : 23} color={color} />
           ),
         }}
       />
@@ -66,7 +76,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_chat"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={compact ? 21 : 23} color={color} />
           ),
         }}
       />
@@ -75,7 +85,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_tasks"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "checkbox" : "checkbox-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "checkbox" : "checkbox-outline"} size={compact ? 21 : 23} color={color} />
           ),
         }}
       />
@@ -84,7 +94,7 @@ export default function TabsLayout() {
         options={{
           title: t("tab_profile"),
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "person" : "person-outline"} size={23} color={color} />
+            <Ionicons name={focused ? "person" : "person-outline"} size={compact ? 21 : 23} color={color} />
           ),
         }}
       />
