@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,15 @@ import { colors, spacing, radius, fontSize, fonts, gradients, statusColor } from
 const COMPANION_IMG =
   "https://images.unsplash.com/photo-1622547748225-3fc4abd2cca0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMHNvZnQlMjAzZCUyMHNoYXBlcyUyMHdhcm18ZW58MHx8fHwxNzg0ODMwMjc2fDA&ixlib=rb-4.1.0&q=85";
 
+type PuzzleWidget = {
+  id: string;
+  enabled: boolean;
+  show_on_home: boolean;
+  order: number;
+  allow_ai_analytics: boolean;
+  notifications: boolean;
+};
+
 const WIDGET_LABELS: Record<string, { ru: string; en: string; icon: any }> = {
   companion: { ru: "Спутник Аида", en: "Aida companion", icon: "heart-outline" },
   readiness: { ru: "Готовность аналитики", en: "Analytics readiness", icon: "analytics-outline" },
@@ -49,9 +58,21 @@ export default function HomeScreen() {
   const [meds, setMeds] = useState<Medication[]>([]);
   const [symptoms, setSymptoms] = useState<Symptom[]>([]);
   const [labs, setLabs] = useState<LabTest[]>([]);
-  const [widgets, setWidgets] = useState<{ id: string; enabled: boolean; order: number }[]>([]);
+  const [widgets, setWidgets] = useState<PuzzleWidget[]>([]);
   const [overview, setOverview] = useState<{ attention: any[]; ai_summary: string | null } | null>(null);
   const [customize, setCustomize] = useState(false);
+
+  const normalizeWidgets = (items: any[]): PuzzleWidget[] =>
+    (items || [])
+      .map((w: any) => ({
+        id: w.id,
+        enabled: w.enabled !== false,
+        show_on_home: w.show_on_home !== false,
+        order: Number.isFinite(w.order) ? w.order : 0,
+        allow_ai_analytics: w.allow_ai_analytics !== false,
+        notifications: w.notifications === true,
+      }))
+      .sort((a, b) => a.order - b.order);
 
   const load = useCallback(async () => {
     if (!activeId) {
@@ -72,9 +93,9 @@ export default function HomeScreen() {
       setMeds(m);
       setSymptoms(s);
       setLabs(l);
-      setWidgets((p.widgets || []).sort((a: any, b: any) => a.order - b.order));
+      setWidgets(normalizeWidgets(p.widgets || []));
     } catch (e) {
-      // Individual widgets keep their honest empty state if a request is unavailable.
+      // Widgets keep honest empty states when a request is unavailable.
     } finally {
       setLoading(false);
     }
@@ -94,10 +115,25 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const toggleWidget = async (id: string) => {
-    const next = widgets.map((w) => (w.id === id ? { ...w, enabled: !w.enabled } : w));
-    setWidgets(next);
-    if (activeId) await api.savePuzzle(activeId, next).catch(() => {});
+  const persistWidgets = async (next: PuzzleWidget[]) => {
+    const normalized = next
+      .sort((a, b) => a.order - b.order)
+      .map((w, index) => ({ ...w, order: index }));
+    setWidgets(normalized);
+    if (activeId) await api.savePuzzle(activeId, normalized).catch(() => {});
+  };
+
+  const patchWidget = async (id: string, patch: Partial<PuzzleWidget>) => {
+    await persistWidgets(widgets.map((w) => (w.id === id ? { ...w, ...patch } : w)));
+  };
+
+  const moveWidget = async (id: string, direction: -1 | 1) => {
+    const sorted = [...widgets].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex((w) => w.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= sorted.length) return;
+    [sorted[index], sorted[target]] = [sorted[target], sorted[index]];
+    await persistWidgets(sorted.map((w, i) => ({ ...w, order: i })));
   };
 
   const { inRange, outRange, biomarkerCount } = useMemo(() => {
@@ -119,27 +155,69 @@ export default function HomeScreen() {
   const activeMed = meds.find((m) => m.active) || meds[0];
   const lastSymptom = symptoms[0];
   const lastLab = labs[0];
-  const readinessOn = widgets.find((w) => w.id === "readiness")?.enabled ?? true;
+
+  const readinessConfig = widgets.find((w) => w.id === "readiness");
+  const readinessOn = (readinessConfig?.enabled ?? true) && (readinessConfig?.show_on_home ?? true);
+  const aiAnalyticsOn = widgets.some((w) => w.enabled && w.allow_ai_analytics);
 
   const renderWidget = (id: string) => {
     switch (id) {
-      case "readiness": return null;
-      case "companion": return <CompanionWidget key={id} game={game} />;
+      case "readiness":
+        return null;
+      case "companion":
+        return <CompanionWidget key={id} game={game} />;
       case "next_medication":
-        return <Card key={id} testID="widget-medication" style={styles.halfCard}><WidgetHeader icon="medkit-outline" label={t("next_medication")} />{activeMed ? <><Title numberOfLines={1}>{activeMed.name}</Title><Muted style={{ marginTop: 2 }} numberOfLines={1}>{[activeMed.dose, activeMed.schedule].filter(Boolean).join(" · ") || "—"}</Muted></> : <Muted>{t("no_active_meds")}</Muted>}</Card>;
+        return (
+          <Card key={id} testID="widget-medication" style={styles.halfCard}>
+            <WidgetHeader icon="medkit-outline" label={t("next_medication")} />
+            {activeMed ? (
+              <>
+                <Title numberOfLines={1}>{activeMed.name}</Title>
+                <Muted style={{ marginTop: 2 }} numberOfLines={1}>{[activeMed.dose, activeMed.schedule].filter(Boolean).join(" · ") || "—"}</Muted>
+              </>
+            ) : <Muted>{t("no_active_meds")}</Muted>}
+          </Card>
+        );
       case "recent_symptom":
-        return <Card key={id} testID="widget-symptom" style={styles.halfCard}><WidgetHeader icon="pulse-outline" label={t("recent_symptom")} />{lastSymptom ? <><Title numberOfLines={1}>{lastSymptom.name}</Title><View style={styles.sevInline}><View style={styles.sevBadge}><Text style={styles.sevBadgeText}>{lastSymptom.severity}/10</Text></View></View></> : <Muted>{t("none_yet")}</Muted>}</Card>;
+        return (
+          <Card key={id} testID="widget-symptom" style={styles.halfCard}>
+            <WidgetHeader icon="pulse-outline" label={t("recent_symptom")} />
+            {lastSymptom ? (
+              <>
+                <Title numberOfLines={1}>{lastSymptom.name}</Title>
+                <View style={styles.sevInline}><View style={styles.sevBadge}><Text style={styles.sevBadgeText}>{lastSymptom.severity}/10</Text></View></View>
+              </>
+            ) : <Muted>{t("none_yet")}</Muted>}
+          </Card>
+        );
       case "latest_lab":
-        return <Card key={id} testID="widget-lab"><WidgetHeader icon="water-outline" label={t("latest_lab")} />{lastLab ? <><Title>{lastLab.title}</Title><Muted style={{ marginTop: 2 }}>{lastLab.date} · {lastLab.biomarkers.length} {t("biomarkers")}</Muted><View style={styles.bioTags}>{lastLab.biomarkers.slice(0, 3).map((b, i) => <View key={i} style={styles.bioTag}><View style={[styles.dot, { backgroundColor: statusColor(b.status) }]} /><Text style={styles.bioTagText}>{b.name} {b.value}</Text></View>)}</View></> : <Muted>{t("none_yet")}</Muted>}</Card>;
+        return (
+          <Card key={id} testID="widget-lab">
+            <WidgetHeader icon="water-outline" label={t("latest_lab")} />
+            {lastLab ? (
+              <>
+                <Title>{lastLab.title}</Title>
+                <Muted style={{ marginTop: 2 }}>{lastLab.date} · {lastLab.biomarkers.length} {t("biomarkers")}</Muted>
+                <View style={styles.bioTags}>{lastLab.biomarkers.slice(0, 3).map((b, i) => <View key={i} style={styles.bioTag}><View style={[styles.dot, { backgroundColor: statusColor(b.status) }]} /><Text style={styles.bioTagText}>{b.name} {b.value}</Text></View>)}</View>
+              </>
+            ) : <Muted>{t("none_yet")}</Muted>}
+          </Card>
+        );
       case "quests":
-        return <Card key={id} testID="widget-quests"><WidgetHeader icon="trophy-outline" label={t("quests")} />{(game?.quests || []).map((q: any) => <View key={q.id} style={styles.questRow}><Ionicons name={q.done ? "checkmark-circle" : "ellipse-outline"} size={20} color={q.done ? colors.success : colors.onSurfaceSecondary} /><Text style={[styles.questText, q.done && styles.questDone]}>{lang === "ru" ? q.title : q.title_en}</Text><Tag label={`+${q.xp}`} /></View>)}</Card>;
+        return (
+          <Card key={id} testID="widget-quests">
+            <WidgetHeader icon="trophy-outline" label={t("quests")} />
+            {(game?.quests || []).map((q: any) => <View key={q.id} style={styles.questRow}><Ionicons name={q.done ? "checkmark-circle" : "ellipse-outline"} size={20} color={q.done ? colors.success : colors.onSurfaceSecondary} /><Text style={[styles.questText, q.done && styles.questDone]}>{lang === "ru" ? q.title : q.title_en}</Text><Tag label={`+${q.xp}`} /></View>)}
+          </Card>
+        );
       case "quick_note":
         return <Card key={id} testID="widget-note" onPress={openMenu}><WidgetHeader icon="create-outline" label={t("quick_note")} /><Muted>{lang === "ru" ? "Нажмите, чтобы добавить данные" : "Tap to add data"}</Muted></Card>;
-      default: return null;
+      default:
+        return null;
     }
   };
 
-  const enabledWidgets = widgets.filter((w) => w.enabled && w.id !== "readiness");
+  const enabledWidgets = widgets.filter((w) => w.enabled && w.show_on_home && w.id !== "readiness");
   const rows: React.ReactNode[] = [];
   for (let i = 0; i < enabledWidgets.length; i++) {
     const w = enabledWidgets[i];
@@ -162,17 +240,14 @@ export default function HomeScreen() {
               <View style={styles.emptyIcon}><Ionicons name="sparkles-outline" size={22} color={colors.onSurface} /></View>
               <Text style={styles.emptyTitle}>{lang === "ru" ? "Начнём собирать картину здоровья" : "Let’s build your health picture"}</Text>
               <Text style={styles.emptyText}>{lang === "ru" ? "Добавьте первый анализ, измерение или запись. До этого Аида не будет показывать оценки и выводы." : "Add your first lab, measurement or health entry. Until then Aida will not show scores or conclusions."}</Text>
-              <Pressable style={styles.emptyAction} onPress={() => openLab()} testID="empty-upload-lab">
-                <Ionicons name="cloud-upload-outline" size={18} color={colors.onSurfaceInverse} />
-                <Text style={styles.emptyActionText}>{lang === "ru" ? "Загрузить первый анализ" : "Upload first lab"}</Text>
-              </Pressable>
+              <Pressable style={styles.emptyAction} onPress={() => openLab()} testID="empty-upload-lab"><Ionicons name="cloud-upload-outline" size={18} color={colors.onSurfaceInverse} /><Text style={styles.emptyActionText}>{lang === "ru" ? "Загрузить первый анализ" : "Upload first lab"}</Text></Pressable>
             </GradientCard>
           )}
 
           {hasLabData && <View style={styles.statStrip}><View style={styles.statPill}><Text style={styles.statNum}>{inRange}</Text><View style={[styles.statTag, { backgroundColor: colors.accent }]}><Text style={styles.statTagText}>{lang === "ru" ? "В норме" : "In range"}</Text></View></View><View style={styles.statPill}><Text style={styles.statNum}>{outRange}</Text><View style={[styles.statTag, { backgroundColor: "#F6D8CE" }]}><Text style={[styles.statTagText, { color: colors.error }]}>{lang === "ru" ? "Вне нормы" : "Out of range"}</Text></View></View></View>}
 
           {readinessOn && hasClinicalData && readiness && <GradientCard gradient={gradients.warm} style={styles.hero} testID="hero-readiness"><Text style={styles.heroLabel}>{t("readiness")}</Text><Text style={styles.heroNum}>{readiness.overall}%</Text><Text style={styles.heroSub}>{t("readiness_hint")}</Text><View style={styles.heroBar}><View style={{ width: `${readiness.overall}%`, height: "100%", backgroundColor: colors.onSurface, borderRadius: 3 }} /></View></GradientCard>}
-          {hasClinicalData && overview?.ai_summary ? <GradientCard gradient={gradients.lime} style={{ marginBottom: spacing.md }} testID="ai-day-card"><View style={styles.aiHead}><Ionicons name="sparkles" size={16} color={colors.onSurface} /><Text style={styles.aiHeadText}>{t("ai_day")}</Text></View><Text style={styles.aiText}>{overview.ai_summary}</Text></GradientCard> : null}
+          {aiAnalyticsOn && hasClinicalData && overview?.ai_summary ? <GradientCard gradient={gradients.lime} style={{ marginBottom: spacing.md }} testID="ai-day-card"><View style={styles.aiHead}><Ionicons name="sparkles" size={16} color={colors.onSurface} /><Text style={styles.aiHeadText}>{t("ai_day")}</Text></View><Text style={styles.aiText}>{overview.ai_summary}</Text></GradientCard> : null}
 
           {hasClinicalData && <Card style={{ marginBottom: spacing.md }} testID="attention-card"><WidgetHeader icon="alert-circle-outline" label={t("needs_attention")} />{overview && overview.attention.length > 0 ? overview.attention.map((a, i) => <Pressable key={i} style={styles.attnRow} testID={`attention-${i}`} onPress={() => router.push((a.type === "bp" ? "/pressure" : a.type === "symptom" ? "/history" : "/labs") as any)}><View style={[styles.attnDot, { backgroundColor: a.severity === "error" ? colors.error : colors.warning }]} /><View style={{ flex: 1 }}><Text style={styles.attnTitle}>{a.title}</Text>{a.subtitle ? <Muted>{a.subtitle}</Muted> : null}</View><Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} /></Pressable>) : overview ? <View style={styles.allGood}><Ionicons name="checkmark-circle" size={20} color={colors.success} /><Muted style={{ flex: 1 }}>{t("all_good")}</Muted></View> : <View style={styles.neutralState}><Ionicons name="information-circle-outline" size={20} color={colors.onSurfaceSecondary} /><Muted style={{ flex: 1 }}>{lang === "ru" ? "Вывод появится, когда Аида получит достаточно данных" : "Insights will appear when Aida has enough data"}</Muted></View>}</Card>}
 
@@ -181,10 +256,42 @@ export default function HomeScreen() {
           <Pressable style={styles.customizeBtn} onPress={() => setCustomize(true)} testID="customize-button"><Ionicons name="options-outline" size={18} color={colors.onSurface} /><Text style={styles.customizeText}>{t("customize")}</Text></Pressable>
         </ScrollView>
       )}
-      <Sheet visible={customize} onClose={() => setCustomize(false)} testID="customize-sheet" scroll><Text style={styles.customizeTitle}>{t("customize")}</Text><Muted style={{ marginBottom: spacing.lg }}>{t("customize_hint")}</Muted>{widgets.map((w) => { const meta = WIDGET_LABELS[w.id]; if (!meta) return null; return <View key={w.id} style={styles.toggleRow}><Ionicons name={meta.icon} size={20} color={colors.onSurface} /><Text style={styles.toggleLabel}>{lang === "ru" ? meta.ru : meta.en}</Text><Switch testID={`toggle-${w.id}`} value={w.enabled} onValueChange={() => toggleWidget(w.id)} trackColor={{ true: colors.accent, false: colors.surfaceTertiary }} thumbColor={colors.surfaceSecondary} /></View>; })}</Sheet>
+
+      <Sheet visible={customize} onClose={() => setCustomize(false)} testID="customize-sheet" scroll>
+        <Text style={styles.customizeTitle}>{t("customize")}</Text>
+        <Muted style={{ marginTop: spacing.xs, marginBottom: spacing.lg }}>{lang === "ru" ? "Выберите, что работает, что видно на Главной и какие функции может использовать Аида." : "Choose what is active, visible on Home and available to Aida."}</Muted>
+        {widgets.map((w, index) => {
+          const meta = WIDGET_LABELS[w.id];
+          if (!meta) return null;
+          return (
+            <View key={w.id} style={styles.configCard} testID={`config-${w.id}`}>
+              <View style={styles.configHeader}>
+                <View style={styles.configIcon}><Ionicons name={meta.icon} size={19} color={colors.onSurface} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.configTitle}>{lang === "ru" ? meta.ru : meta.en}</Text><Text style={styles.configOrder}>{lang === "ru" ? `Позиция ${index + 1}` : `Position ${index + 1}`}</Text></View>
+                <View style={styles.orderButtons}>
+                  <Pressable disabled={index === 0} onPress={() => moveWidget(w.id, -1)} style={[styles.orderButton, index === 0 && styles.orderDisabled]} testID={`move-up-${w.id}`}><Ionicons name="chevron-up" size={18} color={colors.onSurface} /></Pressable>
+                  <Pressable disabled={index === widgets.length - 1} onPress={() => moveWidget(w.id, 1)} style={[styles.orderButton, index === widgets.length - 1 && styles.orderDisabled]} testID={`move-down-${w.id}`}><Ionicons name="chevron-down" size={18} color={colors.onSurface} /></Pressable>
+                </View>
+              </View>
+
+              <ConfigToggle label={lang === "ru" ? "Модуль включён" : "Module enabled"} value={w.enabled} onChange={(value) => patchWidget(w.id, { enabled: value })} testID={`enabled-${w.id}`} />
+              <ConfigToggle label={lang === "ru" ? "Показывать на Главной" : "Show on Home"} value={w.show_on_home} disabled={!w.enabled} onChange={(value) => patchWidget(w.id, { show_on_home: value })} testID={`home-${w.id}`} />
+              <ConfigToggle label={lang === "ru" ? "Разрешить AI-аналитику" : "Allow AI analytics"} value={w.allow_ai_analytics} disabled={!w.enabled} onChange={(value) => patchWidget(w.id, { allow_ai_analytics: value })} testID={`ai-${w.id}`} />
+              <ConfigToggle label={lang === "ru" ? "Уведомления" : "Notifications"} value={w.notifications} disabled={!w.enabled} onChange={(value) => patchWidget(w.id, { notifications: value })} testID={`notifications-${w.id}`} last />
+            </View>
+          );
+        })}
+      </Sheet>
     </View>
   );
 }
+
+const ConfigToggle: React.FC<{ label: string; value: boolean; onChange: (value: boolean) => void; disabled?: boolean; testID: string; last?: boolean }> = ({ label, value, onChange, disabled, testID, last }) => (
+  <View style={[styles.configToggle, last && styles.configToggleLast, disabled && styles.configDisabled]}>
+    <Text style={styles.configToggleLabel}>{label}</Text>
+    <Switch testID={testID} value={value} disabled={disabled} onValueChange={onChange} trackColor={{ true: colors.accent, false: colors.surfaceTertiary }} thumbColor={colors.surfaceSecondary} />
+  </View>
+);
 
 const WidgetHeader: React.FC<{ icon: any; label: string }> = ({ icon, label }) => <View style={styles.widgetHeader}><Ionicons name={icon} size={15} color={colors.onSurfaceSecondary} /><Text style={styles.widgetHeaderText}>{label}</Text></View>;
 
@@ -253,6 +360,16 @@ const styles = StyleSheet.create({
   customizeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.lg, paddingVertical: spacing.md },
   customizeText: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
   customizeTitle: { fontSize: fontSize.xl, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.display },
-  toggleRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  toggleLabel: { flex: 1, fontSize: fontSize.lg, color: colors.onSurface, fontFamily: fonts.text },
+  configCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border },
+  configHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingBottom: spacing.md },
+  configIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  configTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
+  configOrder: { marginTop: 2, fontSize: fontSize.sm, color: colors.onSurfaceSecondary, fontFamily: fonts.text },
+  orderButtons: { flexDirection: "row", gap: 6 },
+  orderButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  orderDisabled: { opacity: 0.28 },
+  configToggle: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: colors.divider },
+  configToggleLast: { paddingBottom: 0 },
+  configToggleLabel: { flex: 1, paddingRight: spacing.md, fontSize: fontSize.sm, color: colors.onSurface, fontFamily: fonts.text },
+  configDisabled: { opacity: 0.45 },
 });
