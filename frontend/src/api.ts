@@ -1,5 +1,21 @@
 const BASE = (process.env.EXPO_PUBLIC_BACKEND_URL || "") + "/api";
 
+let API_TOKEN = "";
+
+export function setApiToken(token?: string | null) {
+  API_TOKEN = token || "";
+}
+
+export function getApiToken() {
+  return API_TOKEN;
+}
+
+export async function apiFetch(path: string, options?: RequestInit) {
+  const headers = new Headers(options?.headers || {});
+  if (API_TOKEN) headers.set("Authorization", `Bearer ${API_TOKEN}`);
+  return fetch(path.startsWith("http") ? path : BASE + path, { ...options, headers });
+}
+
 export type Surgery = {
   id: string;
   title: string;
@@ -139,10 +155,9 @@ export type MedicalDocument = {
 };
 
 async function req(path: string, options?: RequestInit) {
-  const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
+  const headers = new Headers(options?.headers || {});
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const res = await apiFetch(path, { ...options, headers });
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -172,10 +187,11 @@ function minutesUntilNextDose(medication: Medication, now = new Date()) {
 function sortMedicationsForNow(items: Medication[]) {
   return [...items].sort((a, b) => {
     if (a.active !== b.active) return a.active ? -1 : 1;
-    const byTime = minutesUntilNextDose(a) - minutesUntilNextDose(b);
-    if (Number.isFinite(byTime) && byTime !== 0) return byTime;
-    if (Number.isFinite(minutesUntilNextDose(a)) && !Number.isFinite(minutesUntilNextDose(b))) return -1;
-    if (!Number.isFinite(minutesUntilNextDose(a)) && Number.isFinite(minutesUntilNextDose(b))) return 1;
+    const aTime = minutesUntilNextDose(a);
+    const bTime = minutesUntilNextDose(b);
+    if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return aTime - bTime;
+    if (Number.isFinite(aTime) && !Number.isFinite(bTime)) return -1;
+    if (!Number.isFinite(aTime) && Number.isFinite(bTime)) return 1;
     return a.name.localeCompare(b.name);
   });
 }
@@ -206,10 +222,7 @@ export const api = {
 
   listChat: (pid: string): Promise<ChatMsg[]> => req(`/chat?profile_id=${pid}`),
   sendChat: (pid: string, text: string, lang: string) =>
-    req(`/chat?language=${lang}`, {
-      method: "POST",
-      body: JSON.stringify({ profile_id: pid, text }),
-    }),
+    req(`/chat?language=${lang}`, { method: "POST", body: JSON.stringify({ profile_id: pid, text }) }),
   clearChat: (pid: string) => req(`/chat?profile_id=${pid}`, { method: "DELETE" }),
 
   readiness: (pid: string): Promise<{ scores: Record<string, number>; overall: number }> =>
@@ -217,10 +230,7 @@ export const api = {
   gamification: (pid: string): Promise<any> => req(`/gamification/${pid}`),
   getPuzzle: (pid: string): Promise<any> => req(`/puzzle/${pid}`),
   savePuzzle: (pid: string, widgets: any[]) =>
-    req(`/puzzle/${pid}`, {
-      method: "POST",
-      body: JSON.stringify({ profile_id: pid, widgets }),
-    }),
+    req(`/puzzle/${pid}`, { method: "POST", body: JSON.stringify({ profile_id: pid, widgets }) }),
   report: (pid: string, days: number, lang: string): Promise<any> =>
     req(`/report/${pid}?days=${days}&language=${lang}`),
 
@@ -260,7 +270,7 @@ export const api = {
     if (note.trim()) form.append("note", note.trim());
     // @ts-ignore RN FormData file
     form.append("file", { uri: file.uri, name: file.name, type: file.type });
-    const res = await fetch(BASE + "/documents/upload", { method: "POST", body: form as any });
+    const res = await apiFetch("/documents/upload", { method: "POST", body: form as any });
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw new Error(`${res.status}: ${txt}`);
@@ -274,7 +284,7 @@ export const api = {
     form.append("language", lang);
     // @ts-ignore RN FormData file
     form.append("file", { uri: file.uri, name: file.name, type: file.type });
-    const res = await fetch(BASE + "/labs/upload", { method: "POST", body: form as any });
+    const res = await apiFetch("/labs/upload", { method: "POST", body: form as any });
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw new Error(`${res.status}: ${txt}`);
