@@ -14,11 +14,11 @@ import os
 import sys
 import types
 
-from storage import build_storage_from_env
+from google_storage import build_storage_from_env
 
 
-# Fail closed: storage.py will raise on data access when Google credentials are
-# missing. No local or Mongo fallback is allowed in production.
+# Fail closed: if Google credentials are missing, medical-data access errors
+# instead of silently falling back to local/Mongo storage.
 _google_db = build_storage_from_env()
 
 
@@ -33,9 +33,9 @@ class _GoogleCompatClient:
         return None
 
 
-# server.py is still written against a small subset of Motor's collection API.
-# Inject a compatibility module before importing it. This is transitional and
-# lets us migrate endpoints incrementally without ever persisting to Mongo.
+# server.py still uses a small subset of Motor's collection API. Inject the
+# compatibility client before importing it so every db.* operation is backed by
+# Google Sheets while endpoints are migrated incrementally.
 _motor_pkg = types.ModuleType("motor")
 _motor_asyncio = types.ModuleType("motor.motor_asyncio")
 _motor_asyncio.AsyncIOMotorClient = _GoogleCompatClient
@@ -43,15 +43,15 @@ _motor_pkg.motor_asyncio = _motor_asyncio
 sys.modules["motor"] = _motor_pkg
 sys.modules["motor.motor_asyncio"] = _motor_asyncio
 
-# Legacy server.py reads these eagerly. They are compatibility placeholders;
-# no connection is made to MongoDB.
+# Compatibility placeholders only; no Mongo connection is created.
 os.environ.setdefault("MONGO_URL", "google-sheets://aida")
 os.environ.setdefault("DB_NAME", "aida")
 
 import server as legacy_server  # noqa: E402
 
 
-# Never populate a production medical database with demo profiles or values.
+# Production must never populate empty medical storage with demo profiles,
+# analyses, pressure, symptoms, medications or tasks.
 legacy_server.app.router.on_startup = [
     handler
     for handler in legacy_server.app.router.on_startup
