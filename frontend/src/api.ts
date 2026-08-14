@@ -108,7 +108,15 @@ export type Task = {
   title: string;
   kind: string;
   due?: string | null;
+  reminder_at?: string | null;
+  action_route?: string | null;
+  source_type?: string | null;
+  source_id?: string | null;
+  notes?: string | null;
+  status?: "pending" | "done" | "cancelled" | string;
   done: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type MedicalDocument = {
@@ -202,6 +210,8 @@ export const api = {
   listTasks: (pid: string): Promise<Task[]> => req(`/tasks?profile_id=${pid}`),
   createTask: (data: any): Promise<Task> =>
     req("/tasks", { method: "POST", body: JSON.stringify(data) }),
+  updateTask: (id: string, data: Partial<Task>): Promise<Task> =>
+    req(`/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   toggleTask: (id: string): Promise<Task> => req(`/tasks/${id}/toggle`, { method: "PUT" }),
   deleteTask: (id: string) => req(`/tasks/${id}`, { method: "DELETE" }),
 
