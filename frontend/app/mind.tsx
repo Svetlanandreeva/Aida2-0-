@@ -39,20 +39,29 @@ const scaleColor = (v: number, invert = false) => {
 export default function MindScreen() {
   const insets = useSafeAreaInsets();
   const { activeId, refreshTick, bumpRefresh } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { toast } = useLog();
 
   const [items, setItems] = useState<Checkin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [vals, setVals] = useState<Record<string, number>>({ mood: 3, energy: 3, stress: 3, anxiety: 3, sleep: 3 });
   const [triggers, setTriggers] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    if (!activeId) return;
+    if (!activeId) {
+      setItems([]);
+      setError(false);
+      setLoading(false);
+      return;
+    }
+    setError(false);
     try {
       setItems(await api.listCheckins(activeId));
+    } catch (e) {
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -76,49 +85,67 @@ export default function MindScreen() {
     }
   };
 
+  const stateView = !activeId ? (
+    <View style={styles.empty}>
+      <Ionicons name="person-circle-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Сначала выберите профиль" : "Choose a profile first"}</Text>
+      <Muted style={styles.emptyText}>{lang === "ru" ? "Записи самочувствия сохраняются отдельно для каждого профиля." : "Wellbeing check-ins are stored separately for each profile."}</Muted>
+    </View>
+  ) : error ? (
+    <View style={styles.empty}>
+      <Ionicons name="cloud-offline-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Не удалось загрузить дневник" : "Could not load wellbeing history"}</Text>
+      <Muted style={styles.emptyText}>{lang === "ru" ? "Проверьте соединение и попробуйте ещё раз." : "Check your connection and try again."}</Muted>
+      <PrimaryButton label={lang === "ru" ? "Повторить" : "Retry"} onPress={() => { setLoading(true); load(); }} style={{ marginTop: spacing.lg }} />
+    </View>
+  ) : items.length === 0 ? (
+    <View style={styles.empty}>
+      <Ionicons name="happy-outline" size={56} color={colors.onSurfaceSecondary} />
+      <Text style={styles.emptyTitle}>{lang === "ru" ? "Пока нет записей" : "No check-ins yet"}</Text>
+      <Muted style={styles.emptyText}>{t("mind_empty")}</Muted>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.container}>
       <ScreenHeader title={t("m_mind")} />
       {loading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={colors.onSurface} /></View>
+      ) : stateView ? (
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom }}>{stateView}</ScrollView>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 130 + insets.bottom, gap: spacing.md }} showsVerticalScrollIndicator={false}>
-          {items.length === 0 ? (
-            <View style={styles.empty}>
-              <Ionicons name="happy-outline" size={56} color={colors.onSurfaceSecondary} />
-              <Muted style={{ marginTop: spacing.md, textAlign: "center" }}>{t("mind_empty")}</Muted>
-            </View>
-          ) : (
-            items.map((c) => (
-              <Card key={c.id} testID={`checkin-${c.id}`}>
-                <View style={styles.itemHead}>
-                  <Text style={styles.itemDate}>{(c.date || "").slice(0, 10)}</Text>
-                </View>
-                <View style={styles.metricsRow}>
-                  {METRICS.map((m) => {
-                    const v = (c as any)[m.key] as number;
-                    const invert = m.key === "stress" || m.key === "anxiety";
-                    return (
-                      <View key={m.key} style={styles.metricCol}>
-                        <Ionicons name={m.icon} size={16} color={colors.onSurfaceSecondary} />
-                        <View style={[styles.metricDot, { backgroundColor: scaleColor(v, invert) }]}>
-                          <Text style={styles.metricDotText}>{v}</Text>
-                        </View>
-                        <Text style={styles.metricLabel} numberOfLines={1}>{t(m.label)}</Text>
+          {items.map((c) => (
+            <Card key={c.id} testID={`checkin-${c.id}`}>
+              <View style={styles.itemHead}>
+                <Text style={styles.itemDate}>{(c.date || "").slice(0, 10)}</Text>
+              </View>
+              <View style={styles.metricsRow}>
+                {METRICS.map((m) => {
+                  const v = (c as any)[m.key] as number;
+                  const invert = m.key === "stress" || m.key === "anxiety";
+                  return (
+                    <View key={m.key} style={styles.metricCol}>
+                      <Ionicons name={m.icon} size={16} color={colors.onSurfaceSecondary} />
+                      <View style={[styles.metricDot, { backgroundColor: scaleColor(v, invert) }]}>
+                        <Text style={styles.metricDotText}>{v}</Text>
                       </View>
-                    );
-                  })}
-                </View>
-                {c.triggers ? <Muted style={{ marginTop: spacing.sm }}>{t("triggers")}: {c.triggers}</Muted> : null}
-              </Card>
-            ))
-          )}
+                      <Text style={styles.metricLabel} numberOfLines={1}>{t(m.label)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+              {c.triggers ? <Muted style={{ marginTop: spacing.sm }}>{t("triggers")}: {c.triggers}</Muted> : null}
+            </Card>
+          ))}
         </ScrollView>
       )}
 
-      <View style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
-        <PrimaryButton label={t("quick_checkin")} icon="add" onPress={() => setOpen(true)} testID="add-checkin-button" />
-      </View>
+      {!loading && activeId && !error && (
+        <View style={[styles.fabWrap, { bottom: insets.bottom + 24 }]}>
+          <PrimaryButton label={t("quick_checkin")} icon="add" onPress={() => setOpen(true)} testID="add-checkin-button" />
+        </View>
+      )}
 
       <Sheet visible={open} onClose={() => setOpen(false)} testID="checkin-sheet" scroll>
         <Text style={styles.sheetTitle}>{t("quick_checkin")}</Text>
@@ -163,7 +190,9 @@ export default function MindScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  empty: { alignItems: "center", paddingTop: spacing["3xl"] },
+  empty: { alignItems: "center", paddingTop: spacing["3xl"], paddingHorizontal: spacing.lg },
+  emptyTitle: { marginTop: spacing.md, fontSize: fontSize.lg, fontWeight: "700", color: colors.onSurface, textAlign: "center", fontFamily: fonts.text },
+  emptyText: { marginTop: spacing.sm, textAlign: "center", maxWidth: 320 },
   itemHead: { marginBottom: spacing.md },
   itemDate: { fontSize: fontSize.base, fontWeight: "700", color: colors.onSurface, fontFamily: fonts.text },
   metricsRow: { flexDirection: "row", justifyContent: "space-between" },
