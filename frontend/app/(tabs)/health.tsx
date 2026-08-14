@@ -14,6 +14,7 @@ import { colors, spacing, radius, fontSize, fonts, gradients } from "@/src/theme
 
 type Mod = {
   key: string;
+  settingKey?: string;
   route: string;
   label: string;
   icon: any;
@@ -23,6 +24,7 @@ type Mod = {
 
 type AddAction = {
   key: string;
+  settingKey?: string;
   labelRu: string;
   labelEn: string;
   hintRu: string;
@@ -34,12 +36,14 @@ type AddAction = {
 export default function HealthHub() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { activeId, refreshTick } = useApp();
+  const { activeId, activeProfile, refreshTick } = useApp();
   const { t, lang } = useI18n();
   const { openSymptom, openMed, openLab } = useLog();
   const [refreshing, setRefreshing] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [addOpen, setAddOpen] = useState(false);
+
+  const enabled = (key?: string) => !key || activeProfile?.module_settings?.[key] !== false;
 
   const load = useCallback(async () => {
     if (!activeId) {
@@ -86,18 +90,19 @@ export default function HealthHub() {
   };
 
   const mods: Mod[] = [
-    { key: "labs", route: "/labs", label: t("m_labs"), icon: "water", grad: gradients.pink, count: counts.labs },
-    { key: "pressure", route: "/pressure", label: t("m_pressure"), icon: "heart-circle", grad: gradients.warm, count: counts.pressure },
-    { key: "mind", route: "/mind", label: t("m_mind"), icon: "happy", grad: gradients.lime, count: counts.mind },
-    { key: "meds", route: "/medications", label: t("m_meds"), icon: "medkit", grad: gradients.cool, count: counts.meds },
+    { key: "labs", settingKey: "labs", route: "/labs", label: t("m_labs"), icon: "water", grad: gradients.pink, count: counts.labs },
+    { key: "pressure", settingKey: "pressure", route: "/pressure", label: t("m_pressure"), icon: "heart-circle", grad: gradients.warm, count: counts.pressure },
+    { key: "mind", settingKey: "mind", route: "/mind", label: t("m_mind"), icon: "happy", grad: gradients.lime, count: counts.mind },
+    { key: "meds", settingKey: "medications", route: "/medications", label: t("m_meds"), icon: "medkit", grad: gradients.cool, count: counts.meds },
     { key: "measures", route: "/measurements", label: t("m_measures"), icon: "fitness", grad: gradients.warmSoft, count: counts.measures },
     { key: "documents", route: "/documents", label: lang === "ru" ? "Документы" : "Documents", icon: "folder", grad: gradients.cool, count: counts.documents },
     { key: "history", route: "/history", label: t("m_history"), icon: "time", grad: gradients.pink, count: undefined },
-  ];
+  ].filter((m) => enabled(m.settingKey));
 
   const addActions: AddAction[] = [
     {
       key: "pressure",
+      settingKey: "pressure",
       labelRu: "Давление",
       labelEn: "Blood pressure",
       hintRu: "Систолическое, диастолическое и пульс",
@@ -116,6 +121,7 @@ export default function HealthHub() {
     },
     {
       key: "mind",
+      settingKey: "mind",
       labelRu: "Самочувствие и сон",
       labelEn: "Wellbeing & sleep",
       hintRu: "Настроение, энергия, стресс, тревога и сон",
@@ -125,6 +131,7 @@ export default function HealthHub() {
     },
     {
       key: "medication",
+      settingKey: "medications",
       labelRu: "Лекарство",
       labelEn: "Medication",
       hintRu: "Название, дозировка и расписание",
@@ -134,6 +141,7 @@ export default function HealthHub() {
     },
     {
       key: "lab",
+      settingKey: "labs",
       labelRu: "Анализ",
       labelEn: "Lab result",
       hintRu: "Распознать показатели из фото или PDF",
@@ -159,7 +167,7 @@ export default function HealthHub() {
       icon: "fitness-outline",
       run: () => go("/measurements"),
     },
-  ];
+  ].filter((a) => enabled(a.settingKey));
 
   const countLabel = (count?: number) => {
     if (typeof count !== "number" || count === 0) return lang === "ru" ? "Пока нет данных" : "No data yet";
