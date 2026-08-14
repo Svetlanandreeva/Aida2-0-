@@ -2,7 +2,7 @@ import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
-import { LogBox, View } from "react-native";
+import { LogBox, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -23,6 +23,8 @@ SystemUI.setBackgroundColorAsync(colors.surface);
 
 function useNotificationNavigation() {
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
     const openFromNotification = (notification: Notifications.Notification) => {
       const url = notification.request.content.data?.url;
       if (typeof url === "string" && url.startsWith("/")) {
