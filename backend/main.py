@@ -1,12 +1,4 @@
-"""Production entrypoint for Aida 2.0.
-
-This module keeps the current API surface intact while replacing the legacy
-Mongo client with Google Sheets storage. It also disables the legacy demo-data
-auto-seed on startup.
-
-Run with:
-    uvicorn main:app --host 0.0.0.0 --port 8000
-"""
+"""Production entrypoint for Aida 2.0."""
 
 from __future__ import annotations
 
@@ -45,6 +37,7 @@ from candidate_records import build_candidate_router  # noqa: E402
 from documents import build_documents_router  # noqa: E402
 from lab_pipeline import build_lab_router  # noqa: E402
 from profile_api import build_profile_router  # noqa: E402
+from puzzle_api import build_puzzle_router  # noqa: E402
 
 legacy_server.app.router.on_startup = [
     handler
@@ -52,8 +45,6 @@ legacy_server.app.router.on_startup = [
     if getattr(handler, "__name__", "") != "_startup"
 ]
 
-# Enforce the user's profile privacy choice at the actual AI-context boundary.
-# When disabled, Aida receives no stored medical context for that profile.
 _legacy_get_profile_context = legacy_server.get_profile_context
 
 
@@ -69,8 +60,6 @@ async def _privacy_aware_profile_context(profile_id: str) -> str:
 
 legacy_server.get_profile_context = _privacy_aware_profile_context
 
-# Replace legacy routes whose production implementations need stricter storage
-# or richer data contracts.
 legacy_server.app.router.routes = [
     route
     for route in legacy_server.app.router.routes
@@ -80,11 +69,13 @@ legacy_server.app.router.routes = [
             and "POST" in (getattr(route, "methods", None) or set())
         )
         or str(getattr(route, "path", "")).startswith("/api/profiles")
+        or str(getattr(route, "path", "")).startswith("/api/puzzle/")
     )
 ]
 
 app = legacy_server.app
 app.include_router(build_profile_router(_google_db))
+app.include_router(build_puzzle_router(_google_db))
 app.include_router(build_candidate_router(_google_db))
 app.include_router(build_lab_router(_google_db))
 app.include_router(build_documents_router(_google_db))
