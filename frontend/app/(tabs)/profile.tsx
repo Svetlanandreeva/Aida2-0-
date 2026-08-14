@@ -98,7 +98,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 130 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.onSurface} />}
       >
@@ -186,18 +186,20 @@ export default function ProfileScreen() {
               <Text style={styles.settingLabel}>{t("edit")}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceSecondary} />
             </Pressable>
+            <Pressable
+              style={styles.settingRow}
+              onPress={() => router.push(`/report?profileId=${activeProfile.id}`)}
+              testID="generate-report-button"
+            >
+              <View style={styles.settingActionLabel}>
+                <Ionicons name="document-text-outline" size={19} color={colors.onSurface} />
+                <Text style={styles.settingLabel}>{t("generate_report")}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceSecondary} />
+            </Pressable>
           </Card>
         </View>
       </ScrollView>
-
-      <View style={[styles.ctaWrap, { paddingBottom: insets.bottom + 74 }]}>
-        <PrimaryButton
-          label={t("generate_report")}
-          icon="document-text-outline"
-          onPress={() => router.push(`/report?profileId=${activeProfile.id}`)}
-          testID="generate-report-button"
-        />
-      </View>
 
       <Sheet visible={edit} onClose={() => setEdit(false)} testID="edit-sheet" scroll>
         <Text style={styles.editTitle}>{t("edit")}</Text>
@@ -289,13 +291,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.divider,
   },
+  settingActionLabel: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   settingLabel: { fontSize: fontSize.lg, color: colors.onSurface, fontFamily: fonts.text },
   langSwitch: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radius.pill, padding: 3, borderWidth: 1, borderColor: colors.border },
   langOpt: { paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.pill },
   langOptActive: { backgroundColor: colors.brandPrimary },
   langOptText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.onSurfaceSecondary, fontFamily: fonts.text },
   langOptTextActive: { color: colors.onBrandPrimary },
-  ctaWrap: { position: "absolute", left: spacing.lg, right: spacing.lg, bottom: 0 },
   editTitle: { fontSize: fontSize.xl, fontWeight: "700", color: colors.onSurface, marginBottom: spacing.lg, fontFamily: fonts.display },
   fieldLabel: { fontSize: fontSize.base, color: colors.onSurfaceSecondary, marginBottom: spacing.sm, fontWeight: "600", fontFamily: fonts.text },
   input: {
