@@ -37,6 +37,7 @@ from candidate_records import build_candidate_router  # noqa: E402
 from documents import build_documents_router  # noqa: E402
 from lab_pipeline import build_lab_router  # noqa: E402
 from lab_trends import build_lab_trends_router  # noqa: E402
+from medication_api import build_medication_router  # noqa: E402
 from profile_api import build_profile_router  # noqa: E402
 from puzzle_api import build_puzzle_router  # noqa: E402
 from task_api import build_task_router  # noqa: E402
@@ -73,6 +74,7 @@ legacy_server.app.router.routes = [
         or str(getattr(route, "path", "")).startswith("/api/profiles")
         or str(getattr(route, "path", "")).startswith("/api/puzzle/")
         or str(getattr(route, "path", "")).startswith("/api/tasks")
+        or str(getattr(route, "path", "")).startswith("/api/medications")
     )
 ]
 
@@ -80,6 +82,7 @@ app = legacy_server.app
 app.include_router(build_profile_router(_google_db))
 app.include_router(build_puzzle_router(_google_db))
 app.include_router(build_task_router(_google_db))
+app.include_router(build_medication_router(_google_db))
 app.include_router(build_candidate_router(_google_db))
 app.include_router(build_lab_router(_google_db))
 app.include_router(build_lab_trends_router(_google_db))
