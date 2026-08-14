@@ -109,6 +109,7 @@ export type Task = {
   kind: string;
   due?: string | null;
   reminder_at?: string | null;
+  notification_id?: string | null;
   action_route?: string | null;
   source_type?: string | null;
   source_id?: string | null;
