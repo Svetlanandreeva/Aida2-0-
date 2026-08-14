@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   TextInput,
@@ -52,7 +51,7 @@ export default function ProfileScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await reload();
+    await reload().catch(() => {});
     setRefreshing(false);
   };
 
@@ -87,8 +86,22 @@ export default function ProfileScreen() {
 
   if (!activeProfile) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.onSurface} />
+      <View style={[styles.emptyPage, { paddingTop: insets.top + spacing["3xl"] }]}>
+        <View style={styles.emptyIcon}>
+          <Ionicons name="person-outline" size={34} color={colors.onSurfaceSecondary} />
+        </View>
+        <Text style={styles.emptyTitle}>{lang === "ru" ? "Профиль ещё не создан" : "No profile yet"}</Text>
+        <Muted style={styles.emptyText}>
+          {lang === "ru"
+            ? "Создайте профиль, чтобы сохранять показатели здоровья, задачи и документы в одном месте."
+            : "Create a profile to keep health data, tasks and documents in one place."}
+        </Muted>
+        <PrimaryButton
+          label={lang === "ru" ? "Обновить" : "Retry"}
+          onPress={() => reload().catch(() => {})}
+          style={{ marginTop: spacing.lg, width: "100%" }}
+          testID="profile-retry"
+        />
       </View>
     );
   }
@@ -240,7 +253,10 @@ const EditField: React.FC<{ label: string; children: React.ReactNode }> = ({ lab
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  emptyPage: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, paddingHorizontal: spacing.xl },
+  emptyIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { marginTop: spacing.lg, fontSize: fontSize.xl, fontWeight: "800", color: colors.onSurface, fontFamily: fonts.display, textAlign: "center" },
+  emptyText: { marginTop: spacing.sm, textAlign: "center", lineHeight: 20 },
   coverWrap: { height: 180 },
   cover: { width: "100%", height: "100%", backgroundColor: colors.surfaceTertiary },
   langChip: {
