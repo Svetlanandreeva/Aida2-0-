@@ -49,6 +49,7 @@ os.environ.setdefault("DB_NAME", "aida")
 
 import server as legacy_server  # noqa: E402
 from candidate_records import build_candidate_router  # noqa: E402
+from documents import build_documents_router  # noqa: E402
 from lab_pipeline import build_lab_router  # noqa: E402
 
 
@@ -75,3 +76,4 @@ legacy_server.app.router.routes = [
 app = legacy_server.app
 app.include_router(build_candidate_router(_google_db))
 app.include_router(build_lab_router(_google_db))
+app.include_router(build_documents_router(_google_db))
