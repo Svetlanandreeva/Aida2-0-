@@ -36,6 +36,7 @@ import server as legacy_server  # noqa: E402
 from auth_api import build_auth_router  # noqa: E402
 from candidate_records import build_candidate_router  # noqa: E402
 from documents import build_documents_router  # noqa: E402
+from healthkit_api import build_healthkit_router  # noqa: E402
 from lab_pipeline import build_lab_router  # noqa: E402
 from lab_trends import build_lab_trends_router  # noqa: E402
 from medication_api import build_medication_router  # noqa: E402
@@ -93,3 +94,4 @@ app.include_router(build_candidate_router(_google_db))
 app.include_router(build_lab_router(_google_db))
 app.include_router(build_lab_trends_router(_google_db))
 app.include_router(build_documents_router(_google_db))
+app.include_router(build_healthkit_router(_google_db, auth_service))
