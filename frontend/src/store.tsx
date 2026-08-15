@@ -3,6 +3,7 @@ import { storage } from "@/src/utils/storage";
 import { api, Profile } from "@/src/api";
 
 const ACTIVE_KEY = "aida.activeProfileId";
+const PROFILE_CACHE_KEY = "aida.profileCache.v1";
 
 type Ctx = {
   profiles: Profile[];
@@ -36,8 +37,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [refreshTick, setRefreshTick] = useState(0);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
+
+    let cachedProfiles: Profile[] = [];
+    let storedActiveId = "";
+
+    try {
+      const [cachedRaw, stored] = await Promise.all([
+        storage.getItem<string>(PROFILE_CACHE_KEY, ""),
+        storage.getItem<string>(ACTIVE_KEY, ""),
+      ]);
+
+      storedActiveId = stored || "";
+
+      if (cachedRaw) {
+        const parsed = JSON.parse(cachedRaw) as Profile[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedProfiles = parsed;
+          setProfiles(parsed);
+          const cachedActive = parsed.find((p) => p.id === storedActiveId);
+          setActiveId(cachedActive?.id ?? parsed[0]?.id ?? null);
+          // The UI can render immediately from cache while fresh data is fetched.
+          setLoading(false);
+        }
+      }
+    } catch {
+      // Cache is an optimization only. A malformed/missing cache must never
+      // prevent a normal network bootstrap.
+    }
+
+    if (cachedProfiles.length === 0) setLoading(true);
+
     try {
       let list = await api.listProfiles();
 
@@ -54,12 +84,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setProfiles(list);
-      const stored = await storage.getItem<string>(ACTIVE_KEY, "");
-      const valid = list.find((p) => p.id === stored);
+      const valid = list.find((p) => p.id === storedActiveId);
       const nextId = valid ? valid.id : list[0]?.id ?? null;
       setActiveId(nextId);
+      setError(null);
+
+      // Cache only serializable API data. Storage currently accepts primitives,
+      // so the profile list is kept as a JSON string.
+      void storage.setItem(PROFILE_CACHE_KEY, JSON.stringify(list));
     } catch (e: any) {
-      setError(e?.message || "Failed to load");
+      // If cached data was already rendered, keep the app usable and surface
+      // the error without throwing the user back into a blocking loading state.
+      if (cachedProfiles.length === 0) {
+        setError(e?.message || "Failed to load");
+      } else {
+        setError(e?.message || null);
+      }
     } finally {
       setLoading(false);
     }
