@@ -1,6 +1,5 @@
 import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import * as Notifications from "expo-notifications";
 import { useEffect } from "react";
 import { LogBox, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -13,47 +12,73 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { I18nProvider } from "@/src/i18n";
 import { AppProvider } from "@/src/store";
 import { LogProvider } from "@/src/components/LogProvider";
+import { StartupPreview } from "@/src/components/StartupPreview";
 import { colors } from "@/src/theme";
-import "@/src/notifications";
 
 LogBox.ignoreAllLogs(true);
 
-SplashScreen.preventAutoHideAsync();
-SystemUI.setBackgroundColorAsync(colors.surface);
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+SystemUI.setBackgroundColorAsync(colors.surface).catch(() => undefined);
 
 function useNotificationNavigation() {
   useEffect(() => {
     if (Platform.OS === "web") return;
 
-    const openFromNotification = (notification: Notifications.Notification) => {
-      const url = notification.request.content.data?.url;
-      if (typeof url === "string" && url.startsWith("/")) {
-        router.push(url as any);
-      }
+    let cancelled = false;
+    let subscription: { remove: () => void } | undefined;
+
+    const timer = setTimeout(() => {
+      void import("expo-notifications").then((Notifications) => {
+        if (cancelled) return;
+
+        const openFromNotification = (notification: any) => {
+          const url = notification.request.content.data?.url;
+          if (typeof url === "string" && url.startsWith("/")) {
+            router.push(url as any);
+          }
+        };
+
+        const last = Notifications.getLastNotificationResponse();
+        if (last?.notification) openFromNotification(last.notification);
+
+        subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+          openFromNotification(response.notification);
+        });
+      });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      subscription?.remove();
     };
+  }, []);
+}
 
-    const last = Notifications.getLastNotificationResponse();
-    if (last?.notification) openFromNotification(last.notification);
+function useDeferredNotificationSetup() {
+  useEffect(() => {
+    if (Platform.OS === "web") return;
 
-    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      openFromNotification(response.notification);
-    });
+    const timer = setTimeout(() => {
+      void import("@/src/notifications");
+    }, 500);
 
-    return () => subscription.remove();
+    return () => clearTimeout(timer);
   }, []);
 }
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
   useNotificationNavigation();
+  useDeferredNotificationSetup();
 
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
+    // Reveal our own lightweight branded preview immediately instead of
+    // leaving the user staring at a blank native splash while fonts resolve.
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, []);
 
-  if (!loaded && !error) return null;
+  if (!loaded && !error) return <StartupPreview />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
